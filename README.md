@@ -41,6 +41,7 @@ IM-Summary/
 | `docs/design/前端设计文档_V4_最终版.md` | 桌面端界面、模式切换、模型设置、评测历史 |
 | `docs/prompt-strategy/00_Prompt设计总纲.md` | 7-Agent Prompt 设计原则与模板 |
 | `docs/prompt-strategy/02_单模型基础模式Prompt.md` | 基线模式 Prompt（含参考实现） |
+| `docs/prompt-strategy/03_Markdown渲染规范.md` | 摘要 JSON → Markdown 渲染标准 |
 | `docs/evaluation/01_评测方案.md` | 质量指标、评测流程、人工对比与导出 |
 
 ## 版本
