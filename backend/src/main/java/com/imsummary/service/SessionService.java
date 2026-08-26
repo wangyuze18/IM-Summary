@@ -1,0 +1,127 @@
+package com.imsummary.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.imsummary.domain.ConversationSessionEntity;
+import com.imsummary.domain.SummaryResultEntity;
+import com.imsummary.repository.ConversationSessionRepository;
+import com.imsummary.repository.SummaryResultRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+
+/**
+ * 会话服务：列表/搜索、详情、组织关系图（仅当前群成员，缺失关系不推测）。
+ */
+@Service
+public class SessionService {
+
+    private final ConversationSessionRepository sessionRepository;
+    private final SummaryResultRepository summaryResultRepository;
+    private final JsonHelper json;
+
+    public SessionService(ConversationSessionRepository sessionRepository,
+                          SummaryResultRepository summaryResultRepository,
+                          JsonHelper json) {
+        this.sessionRepository = sessionRepository;
+        this.summaryResultRepository = summaryResultRepository;
+        this.json = json;
+    }
+
+    public List<Map<String, Object>> listSessions(String keyword) {
+        List<ConversationSessionEntity> sessions = (keyword == null || keyword.isBlank())
+                ? sessionRepository.findAllByOrderByCreatedAtDesc()
+                : sessionRepository.findByTitleContainingIgnoreCaseOrderByCreatedAtDesc(keyword);
+        return sessions.stream().map(this::toListItem).toList();
+    }
+
+    private Map<String, Object> toListItem(ConversationSessionEntity s) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("sessionId", s.getSessionId());
+        item.put("title", s.getTitle());
+        item.put("messageCount", s.getMessageCount());
+        item.put("memberCount", s.getMemberCount());
+        item.put("goldenProvided", s.isGoldenProvided());
+        item.put("importedAt", s.getCreatedAt());
+        item.put("hasSummary", s.getCurrentSummaryId() != null);
+        return item;
+    }
+
+    public Map<String, Object> getSessionDetail(String sessionId) {
+        ConversationSessionEntity s = requireSession(sessionId);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("sessionId", s.getSessionId());
+        detail.put("title", s.getTitle());
+        detail.put("targetUserId", s.getTargetUserId());
+        detail.put("group", parseQuiet(s.getGroupInfoJson()));
+        detail.put("messages", parseQuiet(s.getMessagesJson()));
+        detail.put("users", parseQuiet(s.getUsersJson()));
+        detail.put("relationships", parseQuiet(s.getRelationshipsJson()));
+        detail.put("goldenProvided", s.isGoldenProvided());
+        detail.put("importFileName", s.getImportFileName());
+        detail.put("createdAt", s.getCreatedAt());
+        return detail;
+    }
+
+    /** 组织关系图：只返回当前群成员节点 + 导入提供的关系边，不推测虚构边 */
+    public Map<String, Object> getOrganizationGraph(String sessionId) {
+        ConversationSessionEntity s = requireSession(sessionId);
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<Map<String, Object>> edges = new ArrayList<>();
+
+        JsonNode users = parseQuiet(s.getUsersJson());
+        if (users != null && users.isArray()) {
+            for (JsonNode u : users) {
+                Map<String, Object> node = new LinkedHashMap<>();
+                node.put("userId", u.path("userId").asText(u.path("name").asText()));
+                node.put("displayName", u.path("name").asText(u.path("displayName").asText("")));
+                node.put("employeeNo", u.path("employeeNo").asText(null));
+                node.put("positionCode", u.path("positionCode").asText(null));
+                node.put("positionName", u.path("position").asText(null));
+                nodes.add(node);
+            }
+        }
+        JsonNode rels = parseQuiet(s.getRelationshipsJson());
+        if (rels != null && rels.isArray()) {
+            for (JsonNode r : rels) {
+                Map<String, Object> edge = new LinkedHashMap<>();
+                edge.put("sourceUserId", r.path("sourceUserId").asText(r.path("from").asText()));
+                edge.put("targetUserId", r.path("targetUserId").asText(r.path("to").asText()));
+                edge.put("relationType", r.path("relationType").asText(r.path("type").asText("")));
+                edge.put("direction", r.path("direction").asText("forward"));
+                edge.put("label", r.path("label").asText(r.path("relationType").asText("")));
+                edges.add(edge);
+            }
+        }
+        Map<String, Object> graph = new LinkedHashMap<>();
+        graph.put("nodes", nodes);
+        graph.put("edges", edges);
+        return graph;
+    }
+
+    public void deleteSession(String sessionId) {
+        sessionRepository.deleteById(sessionId);
+    }
+
+    public ConversationSessionEntity requireSession(String sessionId) {
+        return sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new NoSuchElementException("会话不存在：" + sessionId));
+    }
+
+    public Optional<SummaryResultEntity> latestSummary(String sessionId, String mode) {
+        List<SummaryResultEntity> list = mode == null
+                ? summaryResultRepository.findBySessionIdOrderByVersionDesc(sessionId)
+                : summaryResultRepository.findBySessionIdAndModeOrderByVersionDesc(sessionId, mode);
+        return list.stream().findFirst();
+    }
+
+    private JsonNode parseQuiet(String jsonText) {
+        if (jsonText == null || jsonText.isBlank()) {
+            return null;
+        }
+        try {
+            return json.parse(jsonText);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}

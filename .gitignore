@@ -25,6 +25,14 @@ Thumbs.db
 dist/
 build/
 out/
+target/
+
+# Java / Spring Boot runtime
+backend/data/
+*.db
+
+# Local env overrides
+application-local.yml
 
 # Logs
 *.log
