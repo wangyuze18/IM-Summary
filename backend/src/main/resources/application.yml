@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: im-summary-backend
+  datasource:
+    url: jdbc:h2:file:./data/imsummary;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
+
+imsummary:
+  # 凭据加密密钥（Demo 级；生产环境应使用环境变量或密钥管理服务注入）
+  credential-secret: ${IMSUMMARY_SECRET:im-summary-demo-secret-key-2026}
+  # Auditor 触发修订的最大次数，超过进入 warning
+  max-revision: 2
+  # 模型调用超时（秒）
+  model-timeout-seconds: 120
