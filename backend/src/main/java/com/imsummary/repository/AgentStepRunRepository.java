@@ -11,4 +11,6 @@ public interface AgentStepRunRepository extends JpaRepository<AgentStepRunEntity
     List<AgentStepRunEntity> findByRunIdOrderByStepOrderAsc(String runId);
 
     Optional<AgentStepRunEntity> findByRunIdAndAgentKey(String runId, String agentKey);
+
+    void deleteByRunIdIn(List<String> runIds);
 }

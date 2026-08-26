@@ -11,6 +11,7 @@ import com.imsummary.service.JsonHelper;
 import com.imsummary.service.MarkdownRenderer;
 import com.imsummary.service.ModelProfileService;
 import com.imsummary.service.SessionService;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -155,37 +156,47 @@ public class AgentOrchestrator {
         notify(run, "agent.completed", "context_event");
 
         // Stage 2：State ∥ User Context（并行）
-        setStep(run, "state", "queued", null);
-        setStep(run, "user_context", "queued", null);
+        // 子任务只写自己的 step 记录；run 状态/进度变更统一由主编排线程处理，避免跨线程竞态
+        setStep(run, "state", "running", "决议/待办/状态判断");
+        setStep(run, "user_context", "running", "职位/职责/关系上下文");
         Future<JsonNode> stateFuture = parallelGroup.submit(() -> {
-            setStep(run, "state", "running", "决议/待办/状态判断");
-            JsonNode stateResult = callAgentJson(run, snapshot, thinking, "state",
-                    PromptTemplates.STATE_SYSTEM,
-                    "初始事件列表：\n" + json.toJson(contextEvent.path("events"))
-                            + "\n\n相关证据消息：\n" + dialogue
-                            + "\n请输出状态判断 JSON。");
-            finishStep(run, "state", "success", "状态校验完成");
-            return stateResult;
+            try {
+                return callModel(snapshot, thinking, "state",
+                        PromptTemplates.STATE_SYSTEM,
+                        "初始事件列表：\n" + json.toJson(contextEvent.path("events"))
+                                + "\n\n相关证据消息：\n" + dialogue
+                                + "\n请输出状态判断 JSON。");
+            } catch (Exception e) {
+                markStepError(run.getRunId(), "state", e.getMessage());
+                throw e;
+            }
         });
         Future<JsonNode> userContextFuture = parallelGroup.submit(() -> {
-            setStep(run, "user_context", "running", "职位/职责/关系上下文");
-            JsonNode card = callAgentJson(run, snapshot, thinking, "user_context",
-                    PromptTemplates.USER_CONTEXT_SYSTEM,
-                    buildUserContextInput(session, run.getTargetUserId())
-                            + "\n请输出 User Context Card JSON。");
-            finishStep(run, "user_context", "success", "用户上下文构造完成");
-            return card;
+            try {
+                return callModel(snapshot, thinking, "user_context",
+                        PromptTemplates.USER_CONTEXT_SYSTEM,
+                        buildUserContextInput(session, run.getTargetUserId())
+                                + "\n请输出 User Context Card JSON。");
+            } catch (Exception e) {
+                markStepError(run.getRunId(), "user_context", e.getMessage());
+                throw e;
+            }
         });
         JsonNode stateResult;
         JsonNode userContextCard;
         try {
             stateResult = stateFuture.get();
             userContextCard = userContextFuture.get();
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
+        } catch (Exception e) {
+            stateFuture.cancel(true);
+            userContextFuture.cancel(true);
             failSteps(run, List.of("state", "user_context"));
+            markGroupFailure(run, e);
+            Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
             throw cause instanceof Exception ex ? ex : new RuntimeException(cause);
         }
+        finishStep(run, "state", "success", "状态校验完成");
+        finishStep(run, "user_context", "success", "用户上下文构造完成");
         notify(run, "agent.completed", "state");
         notify(run, "agent.completed", "user_context");
 
@@ -235,29 +246,42 @@ public class AgentOrchestrator {
             setStep(run, "personalization_auditor", "running", "个性化合理性审核");
             final JsonNode finalSummary = summaryStructured;
             Future<JsonNode> factualFuture = parallelGroup.submit(() -> {
-                JsonNode report = callAgentJson(run, snapshot, thinking, "factual_auditor",
-                        PromptTemplates.FACTUAL_AUDITOR_SYSTEM,
-                        "原始消息：\n" + dialogue
-                                + "\n\n事件（含状态）：\n" + json.toJson(validatedEvents)
-                                + "\n\n摘要：\n" + json.toJson(finalSummary)
-                                + "\n请输出事实审核报告 JSON。");
-                return report;
+                try {
+                    return callModel(snapshot, thinking, "factual_auditor",
+                            PromptTemplates.FACTUAL_AUDITOR_SYSTEM,
+                            "原始消息：\n" + dialogue
+                                    + "\n\n事件（含状态）：\n" + json.toJson(validatedEvents)
+                                    + "\n\n摘要：\n" + json.toJson(finalSummary)
+                                    + "\n请输出事实审核报告 JSON。");
+                } catch (Exception e) {
+                    markStepError(run.getRunId(), "factual_auditor", e.getMessage());
+                    throw e;
+                }
             });
-            Future<JsonNode> personalFuture = parallelGroup.submit(() -> callAgentJson(run, snapshot, thinking,
-                    "personalization_auditor",
-                    PromptTemplates.PERSONALIZATION_AUDITOR_SYSTEM,
-                    "User Context Card：\n" + json.toJson(userContextCard)
-                            + "\n\n个性化事件：\n" + json.toJson(relevance)
-                            + "\n\n摘要：\n" + json.toJson(finalSummary)
-                            + "\n请输出个性化审核报告 JSON。"));
+            Future<JsonNode> personalFuture = parallelGroup.submit(() -> {
+                try {
+                    return callModel(snapshot, thinking, "personalization_auditor",
+                            PromptTemplates.PERSONALIZATION_AUDITOR_SYSTEM,
+                            "User Context Card：\n" + json.toJson(userContextCard)
+                                    + "\n\n个性化事件：\n" + json.toJson(relevance)
+                                    + "\n\n摘要：\n" + json.toJson(finalSummary)
+                                    + "\n请输出个性化审核报告 JSON。");
+                } catch (Exception e) {
+                    markStepError(run.getRunId(), "personalization_auditor", e.getMessage());
+                    throw e;
+                }
+            });
             JsonNode factualReport;
             JsonNode personalReport;
             try {
                 factualReport = factualFuture.get();
                 personalReport = personalFuture.get();
-            } catch (ExecutionException e) {
+            } catch (Exception e) {
+                factualFuture.cancel(true);
+                personalFuture.cancel(true);
                 failSteps(run, List.of("factual_auditor", "personalization_auditor"));
-                Throwable cause = e.getCause();
+                markGroupFailure(run, e);
+                Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
                 throw cause instanceof Exception ex ? ex : new RuntimeException(cause);
             }
             notify(run, "agent.completed", "factual_auditor");
@@ -322,16 +346,23 @@ public class AgentOrchestrator {
 
     // ==================== 模型调用 ====================
 
+    /** 仅执行模型调用与 JSON 解析，不触碰任何 run/step 状态（并行子任务安全） */
+    private JsonNode callModel(Map<String, ModelApiProfileEntity> snapshot, boolean thinking,
+                               String agentKey, String system, String userPrompt) throws Exception {
+        ModelApiProfileEntity profile = snapshot.get(agentKey);
+        GatewayModels.ChatResponse response = gateway.chat(profile,
+                new GatewayModels.ChatRequest(system,
+                        List.of(new GatewayModels.ChatMessage("user", userPrompt)),
+                        0.2, thinking));
+        return json.parse(json.extractJsonObject(response.content()));
+    }
+
+    /** 串行阶段调用：失败时由主线程同步更新 run/step 状态 */
     private JsonNode callAgentJson(AgentRunEntity run, Map<String, ModelApiProfileEntity> snapshot,
                                    boolean thinking, String agentKey, String system, String userPrompt)
             throws Exception {
-        ModelApiProfileEntity profile = snapshot.get(agentKey);
         try {
-            GatewayModels.ChatResponse response = gateway.chat(profile,
-                    new GatewayModels.ChatRequest(system,
-                            List.of(new GatewayModels.ChatMessage("user", userPrompt)),
-                            0.2, thinking));
-            return json.parse(json.extractJsonObject(response.content()));
+            return callModel(snapshot, thinking, agentKey, system, userPrompt);
         } catch (ModelCallException e) {
             setStep(run, agentKey, "error", e.getMessage());
             updateRun(run, "failed");
@@ -341,6 +372,29 @@ public class AgentOrchestrator {
             notify(run, "agent.failed", agentKey);
             throw e;
         }
+    }
+
+    /** 只写 step 记录，不触碰共享 run 实体（供并行子任务失败时安全标记） */
+    private void markStepError(String runId, String agentKey, String message) {
+        stepRepository.findByRunIdAndAgentKey(runId, agentKey).ifPresent(step -> {
+            step.setStatus("error");
+            step.setFinishedAt(Instant.now());
+            step.setShortMessage(truncate(message, 1000));
+            stepRepository.save(step);
+        });
+    }
+
+    /** 并行组失败后由主编排线程统一写 run 失败状态（避免跨线程写共享实体） */
+    private void markGroupFailure(AgentRunEntity run, Exception e) {
+        Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+        run.setStatus("failed");
+        if (cause instanceof ModelCallException) {
+            run.setErrorCode("MODEL_CALL_FAILED");
+        }
+        run.setErrorMessage(truncate(cause.getMessage(), 2000));
+        run.setFinishedAt(Instant.now());
+        runRepository.save(run);
+        notify(run, "run.failed", null);
     }
 
     // ==================== 持久化与状态工具 ====================
@@ -562,5 +616,11 @@ public class AgentOrchestrator {
             return null;
         }
         return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        executor.shutdownNow();
+        parallelGroup.shutdownNow();
     }
 }

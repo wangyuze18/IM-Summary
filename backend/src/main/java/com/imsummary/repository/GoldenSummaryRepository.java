@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface GoldenSummaryRepository extends JpaRepository<GoldenSummaryEntity, Long> {
 
     Optional<GoldenSummaryEntity> findTopBySessionIdOrderByGoldenVersionDesc(String sessionId);
+
+    void deleteBySessionId(String sessionId);
 }

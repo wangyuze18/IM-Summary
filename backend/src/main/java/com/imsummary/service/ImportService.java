@@ -6,6 +6,7 @@ import com.imsummary.domain.GoldenSummaryEntity;
 import com.imsummary.repository.ConversationSessionRepository;
 import com.imsummary.repository.GoldenSummaryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
@@ -20,6 +21,9 @@ public class ImportService {
 
     /** 待确认导入的临时存储（Demo 级；重启丢失，符合"未确认不创建会话"语义） */
     private final Map<String, ParsedImport> pendingImports = new ConcurrentHashMap<>();
+
+    /** 待确认导入的保留时长，超时惰性清理，避免只预检不确认的上传永久驻留内存 */
+    private static final long PENDING_TTL_MINUTES = 30;
 
     private final ConversationSessionRepository sessionRepository;
     private final GoldenSummaryRepository goldenSummaryRepository;
@@ -109,6 +113,7 @@ public class ImportService {
         preview.put("title", root.path("session").path("title").asText(group.path("groupName").asText()));
 
         String importId = UUID.randomUUID().toString();
+        evictExpired();
         pendingImports.put(importId, new ParsedImport(fileName, root, issues, preview, Instant.now()));
 
         response.put("importId", importId);
@@ -118,7 +123,8 @@ public class ImportService {
         return response;
     }
 
-    /** 确认导入：创建 ConversationSession，黄金摘要一并持久化 */
+    /** 确认导入：创建 ConversationSession，黄金摘要一并持久化（事务保证两者一致） */
+    @Transactional
     public Map<String, Object> confirm(String importId) {
         ParsedImport parsed = pendingImports.remove(importId);
         if (parsed == null) {
@@ -163,5 +169,11 @@ public class ImportService {
         m.put("level", level);
         m.put("message", message);
         return m;
+    }
+
+    /** 惰性清理超过保留时长的待确认导入 */
+    private void evictExpired() {
+        Instant cutoff = Instant.now().minusSeconds(PENDING_TTL_MINUTES * 60);
+        pendingImports.values().removeIf(p -> p.uploadedAt().isBefore(cutoff));
     }
 }

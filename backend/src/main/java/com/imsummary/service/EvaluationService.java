@@ -52,8 +52,8 @@ public class EvaluationService {
             summary = summaryRepository.findById(summaryId)
                     .orElseThrow(() -> new NoSuchElementException("摘要不存在：" + summaryId));
         } else {
+            // 未指定时默认评测最新版本摘要（两种模式的产出均可评测）
             summary = summaryRepository.findBySessionIdOrderByVersionDesc(sessionId).stream()
-                    .filter(s -> !"not_audited".equals(s.getAuditStatus()) || true)
                     .findFirst()
                     .orElseThrow(() -> new NoSuchElementException("该会话尚无摘要，请先运行分析"));
         }

@@ -11,4 +11,6 @@ public interface AgentRunRepository extends JpaRepository<AgentRunEntity, String
     List<AgentRunEntity> findBySessionIdOrderByStartedAtDesc(String sessionId);
 
     Optional<AgentRunEntity> findTopBySessionIdOrderByStartedAtDesc(String sessionId);
+
+    void deleteBySessionId(String sessionId);
 }

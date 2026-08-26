@@ -12,4 +12,6 @@ public interface EvaluationRecordRepository extends JpaRepository<EvaluationReco
     List<EvaluationRecordEntity> findBySessionIdAndModeOrderByEvaluatedAtDesc(String sessionId, String mode);
 
     List<EvaluationRecordEntity> findBySummaryId(String summaryId);
+
+    void deleteBySessionId(String sessionId);
 }

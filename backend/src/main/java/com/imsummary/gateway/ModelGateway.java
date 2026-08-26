@@ -49,7 +49,9 @@ public class ModelGateway {
                 }
                 log.warn("模型调用失败（可重试），attempt={} profile={}", attempt + 1, profile.getProfileId());
             } catch (Exception e) {
-                throw new ModelCallException("模型调用异常：" + e.getMessage(), e);
+                // 网络/超时等异常包装为 httpStatus=0（可重试），参与重试循环
+                last = new ModelCallException("模型调用异常：" + e.getMessage(), e);
+                log.warn("模型调用失败（网络异常，可重试），attempt={} profile={}", attempt + 1, profile.getProfileId());
             }
         }
         throw new ModelCallException("模型调用失败（重试后仍失败）：" + last.getMessage(), last);

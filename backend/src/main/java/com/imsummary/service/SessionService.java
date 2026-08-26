@@ -1,11 +1,17 @@
 package com.imsummary.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.imsummary.domain.AgentRunEntity;
 import com.imsummary.domain.ConversationSessionEntity;
 import com.imsummary.domain.SummaryResultEntity;
+import com.imsummary.repository.AgentRunRepository;
+import com.imsummary.repository.AgentStepRunRepository;
 import com.imsummary.repository.ConversationSessionRepository;
+import com.imsummary.repository.EvaluationRecordRepository;
+import com.imsummary.repository.GoldenSummaryRepository;
 import com.imsummary.repository.SummaryResultRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -17,13 +23,25 @@ public class SessionService {
 
     private final ConversationSessionRepository sessionRepository;
     private final SummaryResultRepository summaryResultRepository;
+    private final AgentRunRepository agentRunRepository;
+    private final AgentStepRunRepository agentStepRunRepository;
+    private final EvaluationRecordRepository evaluationRecordRepository;
+    private final GoldenSummaryRepository goldenSummaryRepository;
     private final JsonHelper json;
 
     public SessionService(ConversationSessionRepository sessionRepository,
                           SummaryResultRepository summaryResultRepository,
+                          AgentRunRepository agentRunRepository,
+                          AgentStepRunRepository agentStepRunRepository,
+                          EvaluationRecordRepository evaluationRecordRepository,
+                          GoldenSummaryRepository goldenSummaryRepository,
                           JsonHelper json) {
         this.sessionRepository = sessionRepository;
         this.summaryResultRepository = summaryResultRepository;
+        this.agentRunRepository = agentRunRepository;
+        this.agentStepRunRepository = agentStepRunRepository;
+        this.evaluationRecordRepository = evaluationRecordRepository;
+        this.goldenSummaryRepository = goldenSummaryRepository;
         this.json = json;
     }
 
@@ -98,7 +116,18 @@ public class SessionService {
         return graph;
     }
 
+    /** 删除会话：事务内级联清理运行/步骤/摘要/评测/黄金摘要，避免孤儿记录 */
+    @Transactional
     public void deleteSession(String sessionId) {
+        List<String> runIds = agentRunRepository.findBySessionIdOrderByStartedAtDesc(sessionId).stream()
+                .map(AgentRunEntity::getRunId).toList();
+        if (!runIds.isEmpty()) {
+            agentStepRunRepository.deleteByRunIdIn(runIds);
+        }
+        agentRunRepository.deleteBySessionId(sessionId);
+        summaryResultRepository.deleteBySessionId(sessionId);
+        evaluationRecordRepository.deleteBySessionId(sessionId);
+        goldenSummaryRepository.deleteBySessionId(sessionId);
         sessionRepository.deleteById(sessionId);
     }
 

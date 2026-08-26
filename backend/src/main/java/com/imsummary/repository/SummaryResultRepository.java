@@ -10,4 +10,6 @@ public interface SummaryResultRepository extends JpaRepository<SummaryResultEnti
     List<SummaryResultEntity> findBySessionIdOrderByVersionDesc(String sessionId);
 
     List<SummaryResultEntity> findBySessionIdAndModeOrderByVersionDesc(String sessionId, String mode);
+
+    void deleteBySessionId(String sessionId);
 }
