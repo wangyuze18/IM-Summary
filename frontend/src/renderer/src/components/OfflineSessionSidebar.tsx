@@ -121,7 +121,13 @@ export default function OfflineSessionSidebar(props: Props) {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <div className="dz-icon">⬆</div>
+        <div className="dz-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 16V5" />
+            <path d="M7.5 9.5 12 5l4.5 4.5" />
+            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </div>
         支持拖拽或点击导入
         <div style={{ marginTop: 3, fontSize: 11 }}>支持 txt / json / csv 格式，可多选批量导入</div>
       </div>

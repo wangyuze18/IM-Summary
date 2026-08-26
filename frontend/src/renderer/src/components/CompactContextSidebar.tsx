@@ -89,10 +89,10 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
   const shownRelations = relations.filter((r) => shownIds.has(r.fromUserId) && shownIds.has(r.toUserId))
 
   const W = full ? 560 : 210
-  const H = full ? 380 : 190
+  const H = full ? 380 : 210
   const cx = W / 2
   const cy = H / 2
-  const radius = full ? 140 : 62
+  const radius = full ? 140 : 56
 
   const others = shownMembers.filter((m) => m.userId !== target.userId)
   const pos = new Map<string, { x: number; y: number }>()
@@ -129,6 +129,9 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
             </text>
             <text x={p.x} y={p.y + (isTarget ? 30 : 25)} textAnchor="middle" fontSize={10} fill="#5b6a7d">
               {m.name}
+            </text>
+            <text x={p.x} y={p.y + (isTarget ? 41 : 35)} textAnchor="middle" fontSize={8} fill="#97a3b4">
+              工号{m.employeeId}
             </text>
           </g>
         )

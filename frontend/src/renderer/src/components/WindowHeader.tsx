@@ -27,7 +27,14 @@ export default function WindowHeader(props: Props) {
   return (
     <header className="window-header">
       <div className="product-title">
-        <span className="logo">摘</span>
+        <span className="logo-flower" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
+              <ellipse key={a} cx="12" cy="5.6" rx="2.7" ry="4.9" fill="#3b6ef6" transform={`rotate(${a} 12 12)`} />
+            ))}
+            <circle cx="12" cy="12" r="2.5" fill="#2f5bd7" />
+          </svg>
+        </span>
         企业IM智能摘要平台
       </div>
       <div className="header-actions">

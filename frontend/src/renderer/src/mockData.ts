@@ -10,14 +10,28 @@ import type {
   UserProfile
 } from '../../shared/types'
 
-export const AGENT_DEFS: { key: AgentKey; name: string; short: string; color: string }[] = [
-  { key: 'context-event', name: 'Context & Event Agent', short: '主题与事件抽取', color: '#5b8def' },
-  { key: 'state', name: 'State Agent', short: '决议/待办/状态判断', color: '#3dbb7d' },
-  { key: 'user-context', name: 'User Context Agent', short: '职位/职责/关系上下文', color: '#8f6fd8' },
-  { key: 'personalized-relevance', name: 'Personalized Relevance Agent', short: '用户相关性与重要性', color: '#e8934a' },
-  { key: 'summary', name: 'Summary Agent', short: '结构化摘要生成', color: '#4aa8e8' },
-  { key: 'factual-auditor', name: 'Factual Auditor', short: '事实/遗漏/状态审核', color: '#e86a92' },
-  { key: 'personalization-auditor', name: 'Personalization Auditor', short: '个性化合理性审核', color: '#42b8a6' }
+export type MascotProp = 'search' | 'check' | 'book' | 'star' | 'pencil' | 'shield' | 'heart'
+
+export interface AgentDef {
+  key: AgentKey
+  name: string
+  short: string
+  /** 吉祥物主色 / 高光色 / 暗部色（径向渐变 3D 感） */
+  color: string
+  light: string
+  dark: string
+  /** 手持道具 */
+  prop: MascotProp
+}
+
+export const AGENT_DEFS: AgentDef[] = [
+  { key: 'context-event', name: 'Context & Event Agent', short: '主题与事件抽取', color: '#5b8def', light: '#93b5f6', dark: '#3a63c4', prop: 'search' },
+  { key: 'state', name: 'State Agent', short: '决议/待办/状态判断', color: '#3dbb7d', light: '#7ad7a8', dark: '#2a8f5c', prop: 'check' },
+  { key: 'user-context', name: 'User Context Agent', short: '职位/职责/关系上下文', color: '#8f6fd8', light: '#b8a0ea', dark: '#6a4cb0', prop: 'book' },
+  { key: 'personalized-relevance', name: 'Personalized Relevance Agent', short: '用户相关性与重要性', color: '#e8934a', light: '#f3ba84', dark: '#c06f2a', prop: 'star' },
+  { key: 'summary', name: 'Summary Agent', short: '结构化摘要生成', color: '#4aa8e8', light: '#83c9f3', dark: '#2f7fbb', prop: 'pencil' },
+  { key: 'factual-auditor', name: 'Factual Auditor', short: '事实/遗漏/状态审核', color: '#e86a92', light: '#f39bb8', dark: '#c04468', prop: 'shield' },
+  { key: 'personalization-auditor', name: 'Personalization Auditor', short: '个性化合理性审核', color: '#42b8a6', light: '#79d4c4', dark: '#2a8a7b', prop: 'heart' }
 ]
 
 export const MOCK_SESSIONS: ConversationSession[] = [

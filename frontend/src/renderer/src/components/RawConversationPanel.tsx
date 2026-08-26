@@ -72,14 +72,19 @@ export default function RawConversationPanel(props: Props) {
   return (
     <section className="panel">
       <div className="panel-header">
-        <div className="panel-title">原始群聊：{groupName}</div>
-        <div className="chat-meta">
-          <span>消息总数：{messages.length}</span>
-          <span>成员数：{memberCount}</span>
-          <span>时间范围：{timeRange}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, minWidth: 0 }}>
+          <div className="panel-title">原始群聊：{groupName}</div>
+          <div className="chat-meta">
+            <span>消息总数：{messages.length}</span>
+            <span>成员数：{memberCount}</span>
+            <span>时间范围：{timeRange}</span>
+          </div>
+        </div>
+        <div className="chat-meta" style={{ flexShrink: 0 }}>
+          <span>共 {messages.length} 条</span>
           {messages.length > 8 && (
             <button className="link-more" onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '收起' : `展开全部（共 ${messages.length} 条）`}
+              {expanded ? '收起 ▴' : '展开全部 ⤢'}
             </button>
           )}
         </div>
@@ -102,13 +107,13 @@ export default function RawConversationPanel(props: Props) {
             >
               {msg.senderName.slice(-1)}
             </div>
-            <div style={{ minWidth: 0 }}>
+            <div className="chat-who">
               <span className="chat-sender" onClick={() => onPersonClick(msg.senderId)}>
                 {msg.senderName}
-                <span className="chat-role">{msg.senderRole}</span>
               </span>
-              <div className="chat-content">{renderContent(msg)}</div>
+              <span className="chat-role">{msg.senderRole}</span>
             </div>
+            <div className="chat-content">{renderContent(msg)}</div>
           </div>
         ))}
         {messages.length === 0 && <div style={{ color: 'var(--text-3)', padding: 20, textAlign: 'center' }}>暂无消息</div>}

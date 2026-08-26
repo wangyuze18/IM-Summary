@@ -45,7 +45,7 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
   display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
 }
 .product-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
-.product-title .logo { width: 24px; height: 24px; border-radius: 6px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.product-title .logo-flower { display: flex; align-items: center; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 
 .btn { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 7px; padding: 6px 14px; font-size: 13px; transition: all .15s; }
@@ -74,7 +74,7 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .session-item .info { flex: 1; min-width: 0; }
 .session-item .name { font-weight: 600; font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .session-item .meta { color: var(--text-3); font-size: 11px; margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
-.session-item .check { color: var(--green); font-weight: 700; }
+.session-item .check { width: 16px; height: 16px; border-radius: 50%; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; margin-top: 2px; }
 .status-tag { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; }
 .status-tag.pending { background: #eef1f6; color: var(--text-2); }
 .status-tag.analyzing { background: var(--primary-light); color: var(--primary); }
@@ -102,24 +102,34 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .elapsed-time { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .workflow-flow { display: flex; align-items: center; justify-content: space-between; padding: 18px 8px 8px; overflow-x: auto; }
 .agent-node { display: flex; flex-direction: column; align-items: center; width: 108px; flex-shrink: 0; cursor: pointer; position: relative; }
-.agent-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f2f5fa; border: 2px solid var(--border); position: relative; transition: all .2s; }
-.agent-node.running .agent-avatar { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); animation: bob 1.2s ease-in-out infinite; }
-.agent-node.completed .agent-avatar { border-color: var(--green); }
-.agent-node.failed .agent-avatar { border-color: var(--red); }
-.agent-node.warning .agent-avatar { border-color: var(--yellow); }
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.agent-avatar { width: 66px; height: 66px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
+/* Q 版吉祥物状态动画（原型标准）：等待=低饱和呼吸，进行=跳跃+蓝色光晕，完成=弹出，失败=去饱和+红光 */
+.mascot { display: block; }
+.agent-node.waiting .mascot { filter: saturate(.42); opacity: .78; animation: mascotBreathe 3.4s ease-in-out infinite; }
+.agent-node.running .mascot { animation: mascotJump .85s ease-in-out infinite; filter: drop-shadow(0 5px 10px rgba(59,110,246,.45)); }
+.agent-node.completed .mascot { animation: mascotPop .5s ease-out; }
+.agent-node.failed .mascot { filter: saturate(.55) drop-shadow(0 3px 8px rgba(224,76,76,.35)); }
+.mascot-eyes { transform-box: fill-box; transform-origin: center; animation: mascotBlink 4.4s ease-in-out infinite; }
+@keyframes mascotBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+@keyframes mascotJump { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-7px); } }
+@keyframes mascotPop { 0% { transform: scale(.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes mascotBlink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.1); } 97% { transform: scaleY(1); } }
 .agent-badge { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
 .agent-badge.completed { background: var(--green); }
 .agent-badge.failed { background: var(--red); }
 .agent-badge.warning { background: var(--yellow); }
+.agent-badge.revising { background: var(--primary); }
 .agent-name { margin-top: 7px; font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.25; }
 .agent-short { color: var(--text-3); font-size: 10.5px; text-align: center; margin-top: 2px; }
 .flow-connector { flex: 1; height: 2px; min-width: 14px; background: var(--border); position: relative; margin: 0 2px 34px; }
 .flow-connector.done { background: var(--green); }
 .flow-connector.active { background: linear-gradient(90deg, var(--primary) 50%, var(--border) 50%); background-size: 200% 100%; animation: flow 1s linear infinite; }
+.conn-check { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 17px; height: 17px; border-radius: 50%; background: var(--green); color: #fff; font-size: 10.5px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #fff; }
 @keyframes flow { from { background-position: 100% 0; } to { background-position: 0 0; } }
 .parallel-group { display: flex; flex-direction: column; gap: 14px; padding: 4px 8px; border: 1px dashed #c9d4e6; border-radius: 10px; margin-bottom: 34px; position: relative; }
 .parallel-caption { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+.parallel-caption.green { color: var(--green); font-weight: 600; }
+.parallel-caption.blue { color: var(--primary); font-weight: 600; }
 .workflow-caption { text-align: center; color: var(--text-3); font-size: 11px; padding-bottom: 6px; }
 .agent-detail-pop { margin: 4px 16px 12px; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; padding: 10px 14px; font-size: 12.5px; }
 .agent-detail-pop .row { display: flex; gap: 8px; margin: 3px 0; }
@@ -138,14 +148,16 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 /* 原始群聊 RawConversationPanel */
 .chat-meta { color: var(--text-3); font-size: 12px; display: flex; gap: 14px; }
 .chat-list { max-height: 300px; overflow-y: auto; padding: 10px 16px; }
-.chat-msg { display: flex; gap: 10px; padding: 8px 6px; border-radius: 8px; }
+.chat-msg { display: flex; gap: 10px; padding: 8px 6px; border-radius: 8px; align-items: flex-start; }
 .chat-msg.highlight { background: var(--yellow-bg); outline: 1.5px solid var(--yellow); animation: fadeOutline 2.4s forwards; }
 @keyframes fadeOutline { 0%,70% { outline-color: var(--yellow); } 100% { outline-color: transparent; background: transparent; } }
 .chat-time { color: var(--text-3); font-size: 11.5px; width: 36px; flex-shrink: 0; padding-top: 9px; }
 .chat-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; cursor: pointer; }
-.chat-sender { font-size: 12.5px; font-weight: 600; cursor: pointer; }
-.chat-role { font-size: 10.5px; color: var(--text-3); font-weight: 400; margin-left: 5px; }
-.chat-content { margin-top: 3px; font-size: 13px; line-height: 1.55; color: #33405070; color: #334050; }
+/* 姓名/职位独立列 + 正文列（原型四栏结构） */
+.chat-who { width: 62px; flex-shrink: 0; padding-top: 1px; }
+.chat-who .chat-sender { display: block; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-who .chat-role { display: block; font-size: 10.5px; color: var(--text-3); font-weight: 400; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-content { flex: 1; min-width: 0; padding-top: 1px; font-size: 13px; line-height: 1.55; color: #334050; }
 .mention { color: var(--primary); font-weight: 600; cursor: pointer; background: var(--primary-light); border-radius: 4px; padding: 0 3px; }
 
 /* 摘要 SummaryComparisonPanel */
