@@ -436,7 +436,12 @@ export default function App() {
 
       // 轮询运行状态（WebSocket 的 HTTP 兜底；运行状态持久化在后端，断线可恢复）
       const planKeys = AGENT_PLAN.map((p) => p.key)
+      // 重入保护：上一轮请求在途时跳过，避免乱序进度覆盖与终态重复处理（重复触发评测）
+      let polling = false
+      let finished = false
       const poll = window.setInterval(async () => {
+        if (polling || finished) return
+        polling = true
         try {
           const status = await getRunStatus(runId)
           setRun((r) =>
@@ -445,11 +450,14 @@ export default function App() {
               : r
           )
           if (RUN_TERMINAL_STATUSES.includes(status.status)) {
+            finished = true
             window.clearInterval(poll)
             await finishRunBackend(sessionId, status)
           }
         } catch {
           // 单次轮询失败等待下一轮；不阻断运行展示
+        } finally {
+          polling = false
         }
       }, 1000)
       timersRef.current.push(poll)
@@ -555,7 +563,8 @@ export default function App() {
 
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
-      updateProfile(p)
+      // 离线模式剥离明文 Key：Key 仅供在线提交后端，不落入状态与 localStorage（界面始终掩码展示）
+      updateProfile({ ...p, apiKey: undefined })
       return
     }
     saveModelProfile({
@@ -568,6 +577,12 @@ export default function App() {
     })
       .then((view) => {
         const mapped = { ...mapModelProfile(view), thinkingModeEnabled: p.thinkingModeEnabled }
+        // 在线新建首个档案时后端尚无默认配置，同步一次绑定，否则 Run 启动会因"未配置默认模型档案"失败
+        if (defaultProfileId == null) {
+          void saveModelBindings(buildBindingsRequest(view.profileId, bindings)).catch((e) =>
+            toast(`同步默认配置失败：${errorMessageOf(e)}`, 'error')
+          )
+        }
         setModelSettings((cur) => {
           const hasServerId = cur.profiles.some((x) => x.profileId === view.profileId)
           return {
