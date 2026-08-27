@@ -38,7 +38,7 @@ src/
       ├─ WindowHeader.tsx
       ├─ OfflineSessionSidebar.tsx   # NativeFileImportButton / FileDropZone / SessionSearch / LocalSessionList
       ├─ AnalysisModeSwitcher.tsx    # 模式切换器（Agent 团队 / 单模型基础）
-      ├─ AgentWorkflowPanel.tsx      # 7-Agent 工作流（两组并行）+ ElapsedTime
+      ├─ AgentWorkflowPanel.tsx      # 8-Agent 双任务工作流 + ElapsedTime
       ├─ SingleModelProgressPanel.tsx
       ├─ RawConversationPanel.tsx    # 原始群聊（证据高亮定位、@提及联动）
       ├─ SummaryComparisonPanel.tsx  # FinalSummaryViewer（模式徽标/版本切换/复制/导出）+ GoldenSummaryViewer
@@ -54,7 +54,7 @@ examples/
 
 - **双数据源**：启动时探测后端（默认 `http://localhost:8080`，可用环境变量 `VITE_API_BASE_URL` 覆盖）；在线时会话、摘要、评测历史、模型配置均来自 REST API，导入走后端预检查 + 确认，Run 进度通过轮询 `GET /api/runs/{runId}` 获取；后端不可达时静默回退本地 mock，原型行为不变。
 - **请求错误处理**：后端统一错误体 `{ errorCode, message }` 解析为 `ApiError`，网络/超时/解析失败分类处理，错误经界面 Toast 提示。
-- 黄金摘要仅来自导入文件 `goldenSummary` 字段；未携带时黄金摘要区与评测区整体隐藏。
+- 黄金摘要仅来自导入文件 `goldenSummary` 字段；重要消息精确率/召回率还需要 `goldenSummary.importantMessages` 或 `groundTruth.importantMessages` 人工标注，缺失时页面显示“暂无标注”。
 - 模型配置：在线时以后端为准（凭据由后端加密保管，响应仅含掩码）；离线原型持久化在 `localStorage`。
 - 评测/摘要导出：界面按钮当前仍为前端本地导出，请求层已提供后端导出接口客户端（`downloadSummary` / `downloadEvaluationExport`），待后续界面接入。
 
