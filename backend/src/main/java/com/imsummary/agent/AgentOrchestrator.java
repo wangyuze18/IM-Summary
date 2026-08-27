@@ -23,7 +23,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Agent 编排器：执行 7-Agent DAG（agent-workflow）或单模型基线（single-model）。
+ * Agent 编排器：两种模式均产出“智能摘要 + 原始重要消息”两个任务结果。
  *
  * DAG：
  *   Stage 1 Context & Event
@@ -40,15 +40,15 @@ public class AgentOrchestrator {
     /** agent-workflow 的 7 个 Agent 键（顺序用于快照解析与进度权重） */
     public static final List<String> WORKFLOW_AGENT_KEYS = List.of(
             "context_event", "state", "user_context", "relevance",
-            "summary", "factual_auditor", "personalization_auditor");
+            "summary", "importance_extractor", "factual_auditor", "personalization_auditor");
 
-    private static final List<String> SINGLE_AGENT_KEYS = List.of("single_model");
+    private static final List<String> SINGLE_AGENT_KEYS = List.of("single_model", "importance_extractor");
 
     /** 各阶段进度权重（编排器计算，前端不自行推算） */
     private static final Map<String, Integer> STEP_WEIGHT = Map.of(
-            "context_event", 20, "state", 12, "user_context", 12, "relevance", 12,
-            "summary", 18, "factual_auditor", 13, "personalization_auditor", 13,
-            "single_model", 100);
+            "context_event", 16, "state", 10, "user_context", 10, "relevance", 10,
+            "summary", 18, "importance_extractor", 16, "factual_auditor", 10, "personalization_auditor", 10,
+            "single_model", 84);
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
     private final ExecutorService parallelGroup = Executors.newFixedThreadPool(4);
@@ -213,6 +213,18 @@ public class AgentOrchestrator {
         finishStep(run, "relevance", "success", "相关性排序完成");
         notify(run, "agent.completed", "relevance");
 
+        // 独立任务：重要消息必须从原始对话抽取，不能从摘要事件反推。
+        setStep(run, "importance_extractor", "running", "按人员抽取原始重要消息");
+        JsonNode importance = callAgentJson(run, snapshot, thinking, "importance_extractor",
+                PromptTemplates.IMPORTANCE_SYSTEM,
+                PromptTemplates.renderDialogue(dialogue)
+                        + "\n已校验事件与状态（仅用于消歧和查漏，content 仍须取原文）：\n" + json.toJson(validatedEvents)
+                        + "\n角色相关性排序（用于 stakeholders 分组）：\n" + json.toJson(relevance)
+                        + "\n用户画像：\n" + session.getUsersJson());
+        finishStep(run, "importance_extractor", "success",
+                "抽取 " + importance.path("importantMessages").size() + " 条重要消息");
+        notify(run, "agent.completed", "importance_extractor");
+
         // Stage 4 + Stage 5 修订闭环
         int revisionNo = 0;
         String revisionFeedback = null;
@@ -238,6 +250,7 @@ public class AgentOrchestrator {
             summaryStructured = callAgentJson(run, snapshot, thinking, "summary",
                     PromptTemplates.SUMMARY_SYSTEM,
                     summaryInput + "\n请输出结构化摘要 JSON。");
+            summaryStructured = mergeImportantMessages(summaryStructured, importance);
             finishStep(run, "summary", "success", "摘要生成完成");
             notify(run, "agent.completed", "summary");
 
@@ -339,6 +352,13 @@ public class AgentOrchestrator {
         JsonNode structured = callAgentJson(run, snapshot, thinking, "single_model",
                 PromptTemplates.SINGLE_MODEL_SYSTEM, userPrompt + "\n请输出 JSON。");
         finishStep(run, "single_model", "success", "摘要生成完成");
+        setStep(run, "importance_extractor", "running", "按人员抽取原始重要消息");
+        JsonNode importance = callAgentJson(run, snapshot, thinking, "importance_extractor",
+                PromptTemplates.IMPORTANCE_SYSTEM,
+                PromptTemplates.renderDialogue(dialogue) + "\n用户画像：\n" + session.getUsersJson());
+        finishStep(run, "importance_extractor", "success",
+                "抽取 " + importance.path("importantMessages").size() + " 条重要消息");
+        structured = mergeImportantMessages(structured, importance);
         persistSummary(run, session, structured, "not_audited", null);
         updateRun(run, "completed");
         notify(run, "run.completed", null);
@@ -432,6 +452,16 @@ public class AgentOrchestrator {
     private int nextSummaryVersion(String sessionId) {
         return summaryRepository.findBySessionIdOrderByVersionDesc(sessionId).stream()
                 .mapToInt(SummaryResultEntity::getVersion).max().orElse(0) + 1;
+    }
+
+    private JsonNode mergeImportantMessages(JsonNode summary, JsonNode importance) {
+        com.fasterxml.jackson.databind.node.ObjectNode merged = summary != null && summary.isObject()
+                ? ((com.fasterxml.jackson.databind.node.ObjectNode) summary).deepCopy()
+                : json.mapper().createObjectNode();
+        JsonNode messages = importance == null ? null : importance.path("importantMessages");
+        merged.set("importantMessages", messages != null && messages.isArray()
+                ? messages.deepCopy() : json.mapper().createArrayNode());
+        return merged;
     }
 
     private JsonNode mergeState(JsonNode events, JsonNode stateResult) {

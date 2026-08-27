@@ -34,11 +34,16 @@ public class EvaluationRecordEntity {
 
     private Double accuracy;
 
-    private Double recall;
-
     private Double keyInformationOmissionRate;
 
     private Double rougeL;
+
+    /** 判官模型综合质量评分（0-100，越高越好）；旧记录可能为 null */
+    private Double llmScore;
+
+    private Double importantMessagePrecision;
+
+    private Double importantMessageRecall;
 
     private boolean outdated;
 

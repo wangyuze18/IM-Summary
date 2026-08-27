@@ -64,7 +64,7 @@ public class EvaluationController {
         StringBuilder sb = new StringBuilder();
         // BOM 便于 Excel 打开中文
         sb.append('\uFEFF');
-        sb.append("evaluationId,sessionId,mode,summaryVersion,goldenVersion,accuracy,recall,keyInformationOmissionRate,rougeL,outdated,evaluatedAt\n");
+        sb.append("evaluationId,sessionId,mode,summaryVersion,goldenVersion,summaryAccuracy,keyInformationOmissionRate,textSimilarity,llmScore,importantMessagePrecision,importantMessageRecall,outdated,evaluatedAt\n");
         for (Map<String, Object> r : records) {
             @SuppressWarnings("unchecked")
             Map<String, Object> m = (Map<String, Object>) r.get("metrics");
@@ -74,9 +74,11 @@ public class EvaluationController {
                     .append(r.get("summaryVersion")).append(',')
                     .append(r.get("goldenVersion")).append(',')
                     .append(m.get("accuracy")).append(',')
-                    .append(m.get("recall")).append(',')
                     .append(m.get("keyInformationOmissionRate")).append(',')
                     .append(m.get("rougeL")).append(',')
+                    .append(m.get("llmScore")).append(',')
+                    .append(m.get("importantMessagePrecision")).append(',')
+                    .append(m.get("importantMessageRecall")).append(',')
                     .append(r.get("outdated")).append(',')
                     .append(r.get("evaluatedAt")).append('\n');
         }
@@ -91,17 +93,19 @@ public class EvaluationController {
             sb.append("暂无评测记录。\n");
             return sb.toString();
         }
-        sb.append("| 模式 | 摘要版本 | 黄金版本 | Accuracy | Recall | 遗漏率 | ROUGE-L | 过期 | 时间 |\n");
-        sb.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n");
+        sb.append("| 模式 | 摘要版本 | 黄金版本 | 摘要准确率 | 摘要遗漏率 | 文本相似度 | 大模型评分 | 重要消息精确率 | 重要消息召回率 | 过期 | 时间 |\n");
+        sb.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n");
         for (Map<String, Object> r : records) {
             Map<String, Object> m = (Map<String, Object>) r.get("metrics");
             sb.append("| ").append(r.get("mode"))
                     .append(" | ").append(r.get("summaryVersion"))
                     .append(" | ").append(r.get("goldenVersion"))
                     .append(" | ").append(m.get("accuracy"))
-                    .append(" | ").append(m.get("recall"))
                     .append(" | ").append(m.get("keyInformationOmissionRate"))
                     .append(" | ").append(m.get("rougeL"))
+                    .append(" | ").append(m.get("llmScore"))
+                    .append(" | ").append(m.get("importantMessagePrecision"))
+                    .append(" | ").append(m.get("importantMessageRecall"))
                     .append(" | ").append(Boolean.TRUE.equals(r.get("outdated")) ? "是" : "否")
                     .append(" | ").append(r.get("evaluatedAt"))
                     .append(" |\n");

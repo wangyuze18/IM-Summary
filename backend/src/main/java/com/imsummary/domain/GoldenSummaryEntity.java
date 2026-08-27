@@ -24,6 +24,10 @@ public class GoldenSummaryEntity {
     @Column(columnDefinition = "CLOB")
     private String content;
 
+    /** 人工标注的重要消息 JSON 数组；未补标时为 null，重要消息指标不可评测。 */
+    @Column(columnDefinition = "CLOB")
+    private String importantMessagesJson;
+
     /** import（当前唯一合法来源） */
     private String source;
 

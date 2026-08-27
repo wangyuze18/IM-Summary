@@ -24,9 +24,11 @@ import java.util.*;
 public class ModelProfileService {
 
     private static final String SETTINGS_ID = "default";
+    /** 可绑定 Agent 键：团队工作流、重要消息抽取、单模型摘要与评测判分模型 */
     private static final List<String> AGENT_KEYS = List.of(
             "context_event", "state", "user_context", "relevance",
-            "summary", "factual_auditor", "personalization_auditor");
+            "summary", "importance_extractor", "factual_auditor", "personalization_auditor",
+            "single_model", "evaluation_judge");
 
     private final ModelApiProfileRepository profileRepository;
     private final ModelSettingsRepository settingsRepository;

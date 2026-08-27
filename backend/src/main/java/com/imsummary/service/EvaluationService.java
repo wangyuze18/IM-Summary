@@ -12,8 +12,8 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * 评测服务：黄金摘要存在时计算 Accuracy / Recall / 关键信息遗漏率 / ROUGE-L。
- * ROUGE-L 本地计算；Accuracy/Recall/遗漏率由评测判官模型给出。
+ * 评测服务：黄金摘要存在时计算 Accuracy / Recall / 关键信息遗漏率 / ROUGE-L / 综合质量评分（LLM Score）。
+ * ROUGE-L 本地计算；Accuracy/Recall/遗漏率/综合质量评分由评测判分模型（evaluation_judge 绑定）给出。
  * 不含自动对比能力；历史记录支持按模式筛选与导出。
  */
 @Service
@@ -64,24 +64,33 @@ public class EvaluationService {
         // 1) ROUGE-L：本地计算（summary 对 golden）
         double rougeL = rougeL(generatedText, golden.getContent());
 
-        // 2) 判官模型：accuracy / recall / omission
+        // 2) 判分模型：accuracy / recall / omission / llm_score（模型设置中单独绑定 evaluation_judge）
         double accuracy;
-        double recall;
         double omission;
+        double llmScore;
+        Double importantPrecision = null;
+        Double importantRecall = null;
         try {
             Map<String, ModelApiProfileEntity> snapshot =
-                    profileService.resolveRunSnapshot(List.of("factual_auditor"));
-            ModelApiProfileEntity judgeProfile = snapshot.get("factual_auditor");
+                    profileService.resolveRunSnapshot(List.of("evaluation_judge"));
+            ModelApiProfileEntity judgeProfile = snapshot.get("evaluation_judge");
             String judgeInput = "生成摘要：\n" + generatedText
-                    + "\n\n黄金摘要（人工参考答案）：\n" + golden.getContent();
+                    + "\n\n生成结构化结果：\n" + summary.getStructuredJson()
+                    + "\n\n黄金摘要（人工参考答案）：\n" + golden.getContent()
+                    + "\n\n黄金重要消息标注：\n"
+                    + (golden.getImportantMessagesJson() == null ? "[未标注]" : golden.getImportantMessagesJson());
             GatewayModels.ChatResponse resp = gateway.chat(judgeProfile,
                     new GatewayModels.ChatRequest(PromptTemplates.EVALUATION_JUDGE_SYSTEM,
                             List.of(new GatewayModels.ChatMessage("user", judgeInput)),
                             0.0, false));
             JsonNode metrics = json.parse(json.extractJsonObject(resp.content()));
             accuracy = metrics.path("accuracy").asDouble(0.0);
-            recall = metrics.path("recall").asDouble(0.0);
-            omission = metrics.path("keyInformationOmissionRate").asDouble(Math.max(0, 1 - recall));
+            omission = metrics.path("keyInformationOmissionRate").asDouble(0.0);
+            llmScore = Math.max(0, Math.min(100, metrics.path("llm_score").asDouble(0.0)));
+            if (golden.getImportantMessagesJson() != null) {
+                importantPrecision = round(metrics.path("importantMessagePrecision").asDouble(0.0));
+                importantRecall = round(metrics.path("importantMessageRecall").asDouble(0.0));
+            }
         } catch (IllegalStateException configError) {
             throw configError;
         } catch (Exception e) {
@@ -96,9 +105,11 @@ public class EvaluationService {
         record.setGoldenVersion(golden.getGoldenVersion());
         record.setMode(summary.getMode());
         record.setAccuracy(round(accuracy));
-        record.setRecall(round(recall));
         record.setKeyInformationOmissionRate(round(omission));
         record.setRougeL(round(rougeL));
+        record.setLlmScore(Math.round(llmScore * 10) / 10.0);
+        record.setImportantMessagePrecision(importantPrecision);
+        record.setImportantMessageRecall(importantRecall);
         record.setOutdated(false);
         record.setEvaluatedAt(Instant.now());
         evaluationRepository.save(record);
@@ -201,9 +212,12 @@ public class EvaluationService {
         view.put("mode", r.getMode());
         Map<String, Object> metrics = new LinkedHashMap<>();
         metrics.put("accuracy", r.getAccuracy());
-        metrics.put("recall", r.getRecall());
         metrics.put("keyInformationOmissionRate", r.getKeyInformationOmissionRate());
         metrics.put("rougeL", r.getRougeL());
+        metrics.put("llmScore", r.getLlmScore());
+        metrics.put("importantMessagePrecision", r.getImportantMessagePrecision());
+        metrics.put("importantMessageRecall", r.getImportantMessageRecall());
+        metrics.put("importantMessagesEvaluable", r.getImportantMessagePrecision() != null);
         view.put("metrics", metrics);
         view.put("outdated", r.isOutdated());
         view.put("evaluatedAt", r.getEvaluatedAt());

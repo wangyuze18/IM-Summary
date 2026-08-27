@@ -28,7 +28,7 @@ public class SummaryResultEntity {
     @Column(columnDefinition = "CLOB")
     private String markdown;
 
-    /** structured JSON：abstractPoints/decisions/todos/topics/openIssues/keyInfo/personalHighlights */
+    /** structured JSON：摘要主体字段 + importantMessages（原始重要消息） */
     @Column(columnDefinition = "CLOB")
     private String structuredJson;
 

@@ -5,7 +5,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 摘要 JSON → Markdown 渲染，对齐 docs/prompt-strategy/03_Markdown渲染规范.md。
- * 空数组小节整体省略；实体原样保留。
+ * 智能摘要与黄金摘要共用同一渲染模式（mode=golden 时标注分析模式为黄金摘要），便于人工对照。
+ * 标题不含表情符号；空数组小节整体省略；实体原样保留。
  */
 @Component
 public class MarkdownRenderer {
@@ -15,7 +16,7 @@ public class MarkdownRenderer {
         sb.append("# 工作群聊分析简报\n");
         sb.append("**群组名称:** ").append(text(structured.path("groupName"), "[未提供]")).append(" \n");
         sb.append("**报告周期:** ").append(text(structured.path("period"), "[未明确]")).append(" \n");
-        sb.append("**分析模式:** ").append("agent-workflow".equals(mode) ? "Agent 团队模式" : "单模型基础模式").append(" \n\n");
+        sb.append("**分析模式:** ").append(modeLabel(mode)).append(" \n\n");
         sb.append("---\n\n");
 
         JsonNode abstractPoints = structured.path("abstractPoints");
@@ -27,21 +28,37 @@ public class MarkdownRenderer {
             sb.append("\n---\n\n");
         }
 
-        JsonNode highlights = structured.path("personalHighlights");
-        if (highlights.isArray() && !highlights.isEmpty()) {
-            sb.append("### ⭐ 与我相关的重点\n");
-            int i = 1;
-            for (JsonNode h : highlights) {
-                sb.append("* **重点").append(i++).append(":** ").append(h.path("content").asText()).append(" \n");
-                sb.append("  * **相关性:** ").append(h.path("reason").asText("未明确")).append(" \n");
-                sb.append("  * **优先级:** ").append(h.path("priority").asText("中")).append(" \n");
+        JsonNode importantMessages = structured.path("importantMessages");
+        if (importantMessages.isArray() && !importantMessages.isEmpty()) {
+            sb.append("### 工作简报\n\n");
+            sb.append("#### 重要消息（按相关人员划分）\n");
+            java.util.LinkedHashMap<String, java.util.List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
+            for (JsonNode message : importantMessages) {
+                JsonNode stakeholders = message.path("stakeholders");
+                if (stakeholders.isArray() && !stakeholders.isEmpty()) {
+                    for (JsonNode stakeholder : stakeholders) {
+                        grouped.computeIfAbsent(stakeholder.asText("未明确"), k -> new java.util.ArrayList<>()).add(message);
+                    }
+                } else {
+                    grouped.computeIfAbsent("未明确", k -> new java.util.ArrayList<>()).add(message);
+                }
+            }
+            for (var entry : grouped.entrySet()) {
+                sb.append("\n**").append(entry.getKey()).append("**\n");
+                for (JsonNode message : entry.getValue()) {
+                    sb.append("* [").append(message.path("type").asText("其他")).append(" / ")
+                            .append(message.path("priority").asText("中")).append("] **")
+                            .append(message.path("speaker").asText("未明确")).append(":** ")
+                            .append(message.path("content").asText()).append("\n")
+                            .append("  * **重要原因:** ").append(message.path("reason").asText("未明确")).append("\n");
+                }
             }
             sb.append("\n---\n\n");
         }
 
         JsonNode decisions = structured.path("decisions");
         if (decisions.isArray() && !decisions.isEmpty()) {
-            sb.append("### ❗ 决议事项\n");
+            sb.append("### 决议事项\n");
             int i = 1;
             for (JsonNode d : decisions) {
                 sb.append("* **决议").append(i++).append(":** ").append(d.path("title").asText()).append(" \n");
@@ -56,7 +73,7 @@ public class MarkdownRenderer {
 
         JsonNode todos = structured.path("todos");
         if (todos.isArray() && !todos.isEmpty()) {
-            sb.append("### 📋 待办事项 \n\n");
+            sb.append("### 待办事项 \n\n");
             sb.append("| 优先级 | 任务内容 | 负责人 | 截止日期 | 状态 | \n");
             sb.append("| :--- | :--- | :--- | :--- | :--- | \n");
             for (JsonNode t : todos) {
@@ -72,7 +89,7 @@ public class MarkdownRenderer {
 
         JsonNode topics = structured.path("topics");
         if (topics.isArray() && !topics.isEmpty()) {
-            sb.append("### 💬 主要议题讨论 \n");
+            sb.append("### 主要议题讨论 \n");
             int i = 1;
             for (JsonNode t : topics) {
                 sb.append("**议题 ").append(i++).append(": ").append(t.path("title").asText()).append("** \n");
@@ -87,7 +104,7 @@ public class MarkdownRenderer {
         JsonNode openIssues = structured.path("openIssues");
         JsonNode keyInfo = structured.path("keyInfo");
         if ((openIssues.isArray() && !openIssues.isEmpty()) || (keyInfo.isArray() && !keyInfo.isEmpty())) {
-            sb.append("### ❓ 待解决问题与关键信息 \n");
+            sb.append("### 待解决问题与关键信息 \n");
             if (openIssues.isArray() && !openIssues.isEmpty()) {
                 sb.append("* **待解决问题:** \n");
                 int i = 1;
@@ -106,6 +123,17 @@ public class MarkdownRenderer {
         }
 
         return sb.toString();
+    }
+
+    /** 分析模式标注：智能摘要两种模式 + 黄金摘要（人工参考） */
+    private String modeLabel(String mode) {
+        if ("agent-workflow".equals(mode)) {
+            return "Agent 团队模式";
+        }
+        if ("golden".equals(mode)) {
+            return "黄金摘要（人工参考）";
+        }
+        return "单模型";
     }
 
     private String text(JsonNode node, String fallback) {

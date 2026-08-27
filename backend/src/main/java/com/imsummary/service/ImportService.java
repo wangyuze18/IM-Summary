@@ -31,13 +31,16 @@ public class ImportService {
     private final ConversationSessionRepository sessionRepository;
     private final GoldenSummaryRepository goldenSummaryRepository;
     private final JsonHelper json;
+    private final MarkdownRenderer markdownRenderer;
 
     public ImportService(ConversationSessionRepository sessionRepository,
                          GoldenSummaryRepository goldenSummaryRepository,
-                         JsonHelper json) {
+                         JsonHelper json,
+                         MarkdownRenderer markdownRenderer) {
         this.sessionRepository = sessionRepository;
         this.goldenSummaryRepository = goldenSummaryRepository;
         this.json = json;
+        this.markdownRenderer = markdownRenderer;
     }
 
     public record ParsedImport(String fileName, JsonNode root, List<Map<String, Object>> validation,
@@ -173,6 +176,9 @@ public class ImportService {
             golden.setSessionId(session.getSessionId());
             golden.setGoldenVersion(1);
             golden.setContent(root.path("goldenSummary").path("content").asText());
+            JsonNode goldenImportant = root.path("goldenSummary").path("importantMessages");
+            golden.setImportantMessagesJson(goldenImportant.isArray()
+                    ? json.toJson(goldenImportant) : null);
             golden.setSource("import");
             golden.setCreatedAt(Instant.now());
             goldenSummaryRepository.save(golden);
@@ -247,105 +253,18 @@ public class ImportService {
 
         JsonNode golden = root.path("groundTruth").path("goldenSummary");
         if (!golden.isMissingNode() && !golden.isNull()) {
-            std.putObject("goldenSummary").put("content", renderDatasetGoldenSummary(golden));
+            // 与智能摘要共用同一 Markdown 渲染模式（mode=golden），便于人工对照
+            ObjectNode normalizedGolden = std.putObject("goldenSummary");
+            normalizedGolden.put("content", markdownRenderer.render(golden, "golden"));
+            JsonNode important = root.path("groundTruth").path("importantMessages");
+            if (!important.isArray()) {
+                important = golden.path("importantMessages");
+            }
+            if (important.isArray()) {
+                normalizedGolden.set("importantMessages", important);
+            }
         }
         return std;
-    }
-
-    /** 结构化黄金摘要（groundTruth.goldenSummary）渲染为 Markdown，空章节不输出 */
-    private String renderDatasetGoldenSummary(JsonNode g) {
-        StringBuilder sb = new StringBuilder("# 工作群聊分析简报（黄金摘要）\n");
-        String groupName = g.path("groupName").asText("");
-        String period = g.path("period").asText("");
-        if (!groupName.isBlank()) {
-            sb.append("**群组名称:** ").append(groupName).append(" \n");
-        }
-        if (!period.isBlank()) {
-            sb.append("**报告周期:** ").append(period).append(" \n");
-        }
-        sb.append('\n');
-        appendBullets(sb, "摘要", g.path("abstractPoints"));
-        if (g.path("decisions").isArray() && !g.path("decisions").isEmpty()) {
-            sb.append("### 决议事项\n");
-            for (JsonNode d : g.path("decisions")) {
-                sb.append("* ").append(d.path("title").asText())
-                        .append("（").append(d.path("status").asText("")).append("）");
-                String context = d.path("context").asText("");
-                if (!context.isBlank()) {
-                    sb.append("：").append(context);
-                }
-                sb.append('\n');
-            }
-            sb.append('\n');
-        }
-        if (g.path("todos").isArray() && !g.path("todos").isEmpty()) {
-            sb.append("### 待办事项\n");
-            for (JsonNode t : g.path("todos")) {
-                sb.append("* ").append(t.path("task").asText())
-                        .append("（负责人 ").append(t.path("owner").asText("未明确"))
-                        .append("，截止 ").append(t.path("dueDate").asText("未明确"))
-                        .append("，优先级 ").append(t.path("priority").asText("中"))
-                        .append("，").append(t.path("status").asText("")).append("）\n");
-            }
-            sb.append('\n');
-        }
-        if (g.path("topics").isArray() && !g.path("topics").isEmpty()) {
-            sb.append("### 讨论主题\n");
-            for (JsonNode t : g.path("topics")) {
-                sb.append("* **").append(t.path("title").asText()).append("**")
-                        .append("（").append(t.path("timeRange").asText("")).append("）\n");
-                sb.append("  * 参与人：").append(joinText(t.path("participants"), "、")).append('\n');
-                if (t.hasNonNull("process")) {
-                    sb.append("  * 过程：").append(t.path("process").asText()).append('\n');
-                }
-                if (t.hasNonNull("conclusion")) {
-                    sb.append("  * 结论：").append(t.path("conclusion").asText()).append('\n');
-                }
-            }
-            sb.append('\n');
-        }
-        if (g.path("personalHighlights").isArray() && !g.path("personalHighlights").isEmpty()) {
-            sb.append("### 个人关注项\n");
-            for (JsonNode h : g.path("personalHighlights")) {
-                sb.append("* ").append(h.path("content").asText());
-                String reason = h.path("reason").asText("");
-                if (!reason.isBlank()) {
-                    sb.append("（原因：").append(reason).append("）");
-                }
-                sb.append("，优先级 ").append(h.path("priority").asText("中")).append('\n');
-            }
-            sb.append('\n');
-        }
-        appendBullets(sb, "待解决问题", g.path("openIssues"));
-        appendBullets(sb, "关键信息", g.path("keyInfo"));
-        return sb.toString().stripTrailing();
-    }
-
-    private void appendBullets(StringBuilder sb, String heading, JsonNode arr) {
-        if (arr.isArray() && !arr.isEmpty()) {
-            sb.append("### ").append(heading).append('\n');
-            for (JsonNode item : arr) {
-                String text = item.asText("");
-                if (!text.isBlank()) {
-                    sb.append("* ").append(text).append('\n');
-                }
-            }
-            sb.append('\n');
-        }
-    }
-
-    private String joinText(JsonNode arr, String separator) {
-        if (!arr.isArray() || arr.isEmpty()) {
-            return "未明确";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (JsonNode item : arr) {
-            if (sb.length() > 0) {
-                sb.append(separator);
-            }
-            sb.append(item.asText(""));
-        }
-        return sb.toString();
     }
 
     /** 惰性清理超过保留时长的待确认导入 */
