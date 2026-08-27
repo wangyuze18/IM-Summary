@@ -102,11 +102,13 @@ public class SessionService {
         if (rels != null && rels.isArray()) {
             for (JsonNode r : rels) {
                 Map<String, Object> edge = new LinkedHashMap<>();
-                edge.put("sourceUserId", r.path("sourceUserId").asText(r.path("from").asText()));
-                edge.put("targetUserId", r.path("targetUserId").asText(r.path("to").asText()));
+                // 兼容两种键名：标准导入 sourceUserId/targetUserId、数据集格式 source/target
+                edge.put("sourceUserId", r.path("sourceUserId").asText(r.path("source").asText(r.path("from").asText())));
+                edge.put("targetUserId", r.path("targetUserId").asText(r.path("target").asText(r.path("to").asText())));
                 edge.put("relationType", r.path("relationType").asText(r.path("type").asText("")));
                 edge.put("direction", r.path("direction").asText("forward"));
                 edge.put("label", r.path("label").asText(r.path("relationType").asText("")));
+                edge.put("scope", r.path("scope").asText(""));
                 edges.add(edge);
             }
         }

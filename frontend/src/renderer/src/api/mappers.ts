@@ -146,6 +146,24 @@ function inferRoleCategory(role: string): RoleCategory {
   return '其他'
 }
 
+/** 常见英文关系标识 → 中文（仅兜底；关系字段允许任意中文值，含中文时原样展示） */
+const RELATION_LABEL_ZH: Record<string, string> = {
+  reports_to: '汇报给',
+  manager_of: '上级',
+  same_team: '同组',
+  collaborates_with: '协作者',
+  depends_on: '依赖',
+  reviewer: '评审人',
+  approver: '审批人',
+  weak: '弱关联'
+}
+
+function relationLabelZh(label: string): string {
+  // 含中文字符：数据集可携带任意中文关系描述，直接展示不做映射
+  if (/[\u4e00-\u9fa5]/.test(label)) return label
+  return RELATION_LABEL_ZH[label.toLowerCase()] ?? label
+}
+
 /**
  * 后端组织图 → 前端成员/关系视图（V4.4：群组信息与组织关系改用真实数据）。
  * targetUserId 用于组织图居中，不作为「当前用户」展示（单用户 Demo）。
@@ -168,8 +186,9 @@ export function mapOrganization(graph: OrganizationGraphView, targetUserId: stri
   const relations: OrganizationRelation[] = graph.edges.map((e) => ({
     fromUserId: e.sourceUserId,
     toUserId: e.targetUserId,
-    // 弱关联虚线，其余（上下级/协作者等）实线，与原型图例一致
-    line: /weak|弱/.test(e.relationType) ? 'dashed' : 'solid'
+    // 关系边统一实线展示，线上标注中文关系名称（如“上下级”）
+    label: relationLabelZh(e.label || e.relationType),
+    scope: e.scope || undefined
   }))
   return { members, relations }
 }

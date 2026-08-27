@@ -70,6 +70,7 @@ export interface OrganizationGraphView {
     relationType: string
     direction: string
     label: string
+    scope: string
   }>
 }
 

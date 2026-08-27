@@ -122,13 +122,22 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
       {shownRelations.map((r, i) => {
         const a = pos.get(r.fromUserId)!
         const b = pos.get(r.toUserId)!
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
         return (
-          <line
-            key={i}
-            x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-            stroke="#c3ccd9" strokeWidth={r.line === 'solid' ? 1.6 : 1.1}
-            strokeDasharray={r.line === 'dashed' ? '4 4' : undefined}
-          />
+          <g key={i}>
+            {/* 关系边统一实线，线上标注关系名称（如“上下级”） */}
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#c3ccd9" strokeWidth={1.6} />
+            {r.label && (
+              <text
+                x={mid.x} y={mid.y - 3}
+                textAnchor="middle" fontSize={full ? 9 : 7}
+                fill="#7b8798" stroke="#fff" strokeWidth={3} paintOrder="stroke"
+              >
+                {r.label}
+              </text>
+            )}
+            <title>{r.scope ? `${r.label} · ${r.scope}` : r.label}</title>
+          </g>
         )
       })}
       {shownMembers.map((m) => {
@@ -219,7 +228,7 @@ export default function CompactContextSidebar({ groupName, members, relations, h
                     {r}
                   </span>
                 ))}
-                <span className="role-count">— 实线：直接协作　┄ 虚线：弱关联</span>
+                <span className="role-count">— 实线：组织/协作关系（线上标注关系名称）</span>
               </div>
             </div>
           </div>
