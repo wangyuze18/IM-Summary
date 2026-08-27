@@ -73,6 +73,18 @@ export interface OrganizationGraphView {
   }>
 }
 
+/** GET /api/sessions/{id}/golden-summary（V5.4）：未携带时 goldenProvided=false、content 为 null */
+export interface GoldenSummaryView {
+  goldenProvided: boolean
+  goldenVersion: number | null
+  content: string | null
+}
+
+/** GET /api/model-profiles/{id}/api-key（V5.4）：解密明文，供前端回显编辑 */
+export interface ApiKeyView {
+  apiKey: string | null
+}
+
 // ---------- 运行 ----------
 
 /** 后端 AgentRunEntity.status 枚举 */

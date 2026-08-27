@@ -76,7 +76,7 @@ export default function LocalModelSettingsDialog(props: Props) {
     setModelCustom(false)
     setEditing(
       p
-        ? { ...p, apiKey: '' }
+        ? { ...p, apiKey: p.apiKey ?? '' }
         : { ...EMPTY_FORM, displayName: `配置 ${profiles.length + 1}` }
     )
   }
@@ -101,7 +101,7 @@ export default function LocalModelSettingsDialog(props: Props) {
       ...editing,
       profileId: editing.profileId ?? `p-${Date.now()}`,
       apiKeyMasked: editing.apiKey?.trim() ? maskKey(editing.apiKey.trim()) : editing.apiKeyMasked,
-      // 保留新填写的 API Key 供保存回调提交后端（仅请求使用，界面仍以掩码展示）；离线模式不读取该字段
+      // 明文回显后每次保存均携带 API Key 提交后端（V4.4）
       apiKey: editing.apiKey?.trim() || undefined,
       // 配置变更后连接状态需重新测试
       connectionStatus: 'untested',
@@ -195,7 +195,7 @@ export default function LocalModelSettingsDialog(props: Props) {
         </div>
         <div className="drawer-body">
           <div className="settings-note" style={{ marginBottom: 12 }}>
-            模型凭据仅用于分析任务，保存后以掩码显示。
+            模型凭据仅用于分析任务；在线时明文回显可编辑，每次保存均发送给后端。
           </div>
 
           {profiles.map((p) => (
@@ -211,7 +211,7 @@ export default function LocalModelSettingsDialog(props: Props) {
                 {PROVIDER_LABEL[p.providerType]} · {p.modelName} · {p.baseUrl}
               </div>
               <div className="sub">
-                API Key：{p.apiKeyMasked ?? '（未设置）'} · 连接状态：{CONN_LABEL[p.connectionStatus]}
+                API Key：{p.apiKey ?? p.apiKeyMasked ?? '（未设置）'} · 连接状态：{CONN_LABEL[p.connectionStatus]}
                 {p.lastTestedAt ? ` · 最近测试 ${p.lastTestedAt}` : ''}
               </div>
               {p.lastError && <div className="error-text">{p.lastError}</div>}

@@ -3,7 +3,9 @@
 
 import { httpJson, httpDownload } from './httpClient'
 import type {
+  ApiKeyView,
   EvaluationRecordView,
+  GoldenSummaryView,
   ImportConfirmResponse,
   ImportValidateResponse,
   ListModelsRequest,
@@ -37,6 +39,11 @@ export function getSessionDetail(sessionId: string): Promise<SessionDetailView> 
 
 export function getOrganization(sessionId: string): Promise<OrganizationGraphView> {
   return httpJson(`/api/sessions/${encodeURIComponent(sessionId)}/organization`)
+}
+
+/** 黄金摘要内容（V5.4）：未携带时 goldenProvided=false */
+export function getGoldenSummary(sessionId: string): Promise<GoldenSummaryView> {
+  return httpJson(`/api/sessions/${encodeURIComponent(sessionId)}/golden-summary`)
 }
 
 export function listSessionRuns(sessionId: string): Promise<RunListItemView[]> {
@@ -125,6 +132,11 @@ export function saveModelProfile(body: SaveProfileRequest): Promise<ModelProfile
 /** 删除档案；被默认绑定或 Agent 引用时后端返回 400/409 错误 */
 export function deleteModelProfile(profileId: string): Promise<{ deleted: boolean }> {
   return httpJson(`/api/model-profiles/${encodeURIComponent(profileId)}`, { method: 'DELETE' })
+}
+
+/** API Key 明文获取（V5.4）：供设置界面回显编辑，每次保存重新提交后端 */
+export function getModelApiKey(profileId: string): Promise<ApiKeyView> {
+  return httpJson(`/api/model-profiles/${encodeURIComponent(profileId)}/api-key`)
 }
 
 /**

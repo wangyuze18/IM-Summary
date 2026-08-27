@@ -47,7 +47,8 @@ export default function RawConversationPanel(props: Props) {
       }
       if (idx > 0) parts.push(rest.slice(0, idx))
       const after = rest.slice(idx + 1)
-      const mentioned = members.find((m) => msg.mentions.includes(m.userId) && after.startsWith(m.name))
+      // 真实数据集的 mentions 为成员姓名，兼容 userId / 姓名两种匹配（V4.4）
+      const mentioned = members.find((m) => after.startsWith(m.name) && (msg.mentions.includes(m.name) || msg.mentions.includes(m.userId)))
       if (mentioned) {
         parts.push(
           <span key={`${msg.messageId}-${i++}`} className="mention" onClick={() => onPersonClick(mentioned.userId)}>

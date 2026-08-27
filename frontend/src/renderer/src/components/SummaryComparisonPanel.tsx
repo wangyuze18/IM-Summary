@@ -125,7 +125,6 @@ function GoldenSummaryViewer({ golden }: { golden: GoldenSummary }) {
     <div className="summary-col">
       <div className="summary-head">
         <b>黄金摘要</b>
-        <span className="mode-badge golden">导入携带 · v{golden.goldenVersion}</span>
       </div>
       <div className="summary-body md">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{golden.markdown}</ReactMarkdown>

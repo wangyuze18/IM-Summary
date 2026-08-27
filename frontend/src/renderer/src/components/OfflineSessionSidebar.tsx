@@ -7,6 +7,8 @@ interface Props {
   activeSessionId: string | null
   onSelect: (sessionId: string) => void
   onImportFiles: (files: { name: string; path?: string; file?: File }[]) => void
+  /** 会话删除（V4.4）；未传入时不展示删除入口 */
+  onDelete?: (sessionId: string) => void
 }
 
 const STATUS_TEXT: Record<SessionStatus, string> = {
@@ -27,7 +29,7 @@ declare global {
 }
 
 export default function OfflineSessionSidebar(props: Props) {
-  const { sessions, activeSessionId, onSelect, onImportFiles } = props
+  const { sessions, activeSessionId, onSelect, onImportFiles, onDelete } = props
   const [keyword, setKeyword] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -105,6 +107,21 @@ export default function OfflineSessionSidebar(props: Props) {
                 {s.hasGoldenSummary && <span className="status-tag" style={{ background: 'var(--yellow-bg)', color: 'var(--yellow)' }}>含黄金摘要</span>}
               </div>
             </div>
+            {onDelete && (
+              <button
+                className="session-delete"
+                title="删除会话"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (window.confirm(`确定删除会话“${s.groupName}”？\n其摘要与评测记录将一并删除，且不可恢复。`)) {
+                    onDelete(s.sessionId)
+                  }
+                }}
+              >
+                ✕
+              </button>
+            )}
+            {/* 完成标识固定在卡片右下角（V4.4） */}
             {s.status === 'completed' && <span className="check">✓</span>}
           </div>
         ))}

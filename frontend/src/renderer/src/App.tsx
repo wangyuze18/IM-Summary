@@ -24,10 +24,15 @@ import {
 import {
   agentKeyFromBackend,
   agentKeyToBackend,
+  computeTimeRange,
   confirmImport as confirmImportApi,
   deleteModelProfile,
+  deleteSession,
   errorMessageOf,
+  getGoldenSummary,
+  getModelApiKey,
   getModelBindings,
+  getOrganization,
   getRunStatus,
   getSessionDetail,
   getSummary,
@@ -35,10 +40,12 @@ import {
   listModelProfiles,
   listProfileModels,
   listSessions as listSessionsApi,
+  listSessionRuns,
   listSummaries,
   mapAgentSteps,
   mapEvaluationRecord,
   mapModelProfile,
+  mapOrganization,
   mapRawMessages,
   mapSessionListItem,
   mapSummary,
@@ -62,7 +69,9 @@ import type {
   GoldenSummary,
   ImportFileItem,
   ModelProfile,
-  SummaryResult
+  OrganizationRelation,
+  SummaryResult,
+  UserProfile
 } from '../../shared/types'
 
 // 团队模式各 Agent 执行编排（毫秒）：两组并行关系与设计文档 §6.1 一致
@@ -80,9 +89,6 @@ const SINGLE_TOTAL = 2600
 
 // 后端运行终态（对应 AgentRunEntity.status）
 const RUN_TERMINAL_STATUSES: BackendRunStatus[] = ['completed', 'completed_with_warning', 'failed', 'cancelled']
-
-// 后端携带黄金摘要但暂无内容读取接口；占位内容保证评测区可见（§8.2：仅未携带时隐藏）
-const GOLDEN_ONLINE_PLACEHOLDER = '> 该会话已携带黄金摘要（仅用于评测），后端暂未提供内容在线查看。'
 
 interface RunState {
   sessionId: string
@@ -159,17 +165,32 @@ export default function App() {
   const [activeVersionBySession, setActiveVersionBySession] = useState<Record<string, number>>({ 's-001': 2 })
   const [goldenBySession, setGoldenBySession] = useState<Record<string, GoldenSummary | null>>({ 's-001': MOCK_GOLDEN })
   const [evalBySession, setEvalBySession] = useState<Record<string, EvaluationRecord[]>>({ 's-001': MOCK_EVALUATION_HISTORY })
+  // 群组成员与组织关系（按会话隔离）：在线为后端真实数据（V4.4），离线回退 mock
+  const [membersBySession, setMembersBySession] = useState<Record<string, UserProfile[]>>({})
+  const [relationsBySession, setRelationsBySession] = useState<Record<string, OrganizationRelation[]>>({})
 
   // ---- 分析模式与 Run ----
   const [mode, setMode] = useState<AnalysisMode>('agent-workflow')
   const [run, setRun] = useState<RunState | null>(null)
   const timersRef = useRef<number[]>([])
+  // 各模式上次运行耗时（按会话 + 模式隔离，V4.4：两模式时间相互独立）
+  const [lastRunSecondsBySession, setLastRunSecondsBySession] = useState<Record<string, Partial<Record<AnalysisMode, number>>>>({})
 
-  // 通过 ref 读取最新状态，避免在 setState updater 内嵌套调用 setState（StrictMode 下会重复执行）
+  // 通过 ref 读取最新状态，避免在 setState updater 中嵌套调用 setState（StrictMode 下会重复执行）
   const summariesRef = useRef(summariesBySession)
   summariesRef.current = summariesBySession
   const goldenRef = useRef(goldenBySession)
   goldenRef.current = goldenBySession
+  const runRef = useRef(run)
+  runRef.current = run
+  
+  // 记录某会话某模式的上次运行耗时（终态回调中调用）
+  const recordLastRunSeconds = (sessionId: string, runMode: AnalysisMode) => {
+    const r = runRef.current
+    if (!r || r.sessionId !== sessionId) return
+    const seconds = Math.max(0, Math.round((Date.now() - r.startedAt) / 1000))
+    setLastRunSecondsBySession((m) => ({ ...m, [sessionId]: { ...m[sessionId], [runMode]: seconds } }))
+  }
 
   // ---- 模型设置 ----
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -226,8 +247,20 @@ export default function App() {
       try {
         const [profileViews, bindingsView] = await Promise.all([listModelProfiles(), getModelBindings()])
         if (cancelled) return
+        // API Key 明文回填：供设置界面回显与编辑（V4.4），仅驻留内存，不写 localStorage
+        const profilesWithKeys = await Promise.all(
+          profileViews.map(mapModelProfile).map(async (p) => {
+            try {
+              const { apiKey } = await getModelApiKey(p.profileId)
+              return apiKey ? { ...p, apiKey } : p
+            } catch {
+              return p
+            }
+          })
+        )
+        if (cancelled) return
         setModelSettings({
-          profiles: profileViews.map(mapModelProfile),
+          profiles: profilesWithKeys,
           defaultProfileId: bindingsView.defaultProfileId
         })
         setBindings(
@@ -245,21 +278,44 @@ export default function App() {
     }
   }, [toast])
 
-  // 从后端加载指定会话的详情 / 摘要 / 评测历史（失败项保留当前数据并 Toast 提示）
+  // 从后端加载指定会话的详情 / 组织图 / 黄金摘要 / 摘要 / 评测历史（失败项保留当前数据并 Toast 提示）
   const refreshSessionFromBackend = useCallback(
     async (sessionId: string) => {
+      let targetUserId: string | null = null
       try {
         const detail = await getSessionDetail(sessionId)
-        if (detail.messages && detail.messages.length > 0) {
-          setImportedMessages((m) => ({ ...m, [sessionId]: mapRawMessages(detail.messages!, detail.users ?? []) }))
-        }
-        if (detail.goldenProvided) {
-          setGoldenBySession((g) =>
-            g[sessionId] ? g : { ...g, [sessionId]: { goldenVersion: 1, markdown: GOLDEN_ONLINE_PLACEHOLDER } }
-          )
+        targetUserId = detail.targetUserId
+        const msgs = detail.messages ?? []
+        setImportedMessages((m) => ({ ...m, [sessionId]: mapRawMessages(msgs, detail.users ?? []) }))
+        // 列表接口无时间段统计：由消息时间戳计算回填会话条目（V4.4）
+        if (msgs.length > 0) {
+          const timeRange = computeTimeRange(msgs)
+          setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, timeRange } : s)))
         }
       } catch (e) {
         toast(`会话详情加载失败：${errorMessageOf(e)}`, 'error')
+      }
+      try {
+        // 群组成员与组织关系改用真实数据（V4.4）；targetUserId 仅用于组织图居中，不标识“当前用户”
+        const graph = await getOrganization(sessionId)
+        const { members, relations } = mapOrganization(graph, targetUserId)
+        setMembersBySession((m) => ({ ...m, [sessionId]: members }))
+        setRelationsBySession((m) => ({ ...m, [sessionId]: relations }))
+      } catch {
+        // 组织图加载失败不阻断其他内容展示（保持空视图）
+      }
+      try {
+        // 黄金摘要内容（V5.4）：携带时展示真实内容；未携带置 null，黄金摘要与评测区整体隐藏（§8.2）
+        const goldenView = await getGoldenSummary(sessionId)
+        setGoldenBySession((g) => ({
+          ...g,
+          [sessionId]:
+            goldenView.goldenProvided && goldenView.content
+              ? { goldenVersion: goldenView.goldenVersion ?? 1, markdown: goldenView.content }
+              : null
+        }))
+      } catch {
+        // 黄金摘要加载失败不阻断其他内容展示
       }
       try {
         // 列表接口不含全文，逐版本拉取完整摘要（版本数通常很少）
@@ -277,6 +333,25 @@ export default function App() {
         setEvalBySession((map) => ({ ...map, [sessionId]: records.map(mapEvaluationRecord) }))
       } catch {
         // 评测历史拉取失败不阻断其他内容展示
+      }
+      try {
+        // 恢复各模式上次运行耗时（V4.4：取每模式最近一次成功运行的起止时间差）
+        const runs = await listSessionRuns(sessionId)
+        const latest: Partial<Record<AnalysisMode, { at: number; secs: number }>> = {}
+        for (const r of runs) {
+          if ((r.status === 'completed' || r.status === 'completed_with_warning') && r.startedAt && r.finishedAt) {
+            const fin = new Date(r.finishedAt).getTime()
+            const secs = Math.max(0, Math.round((fin - new Date(r.startedAt).getTime()) / 1000))
+            const cur = latest[r.mode]
+            if (!cur || fin >= cur.at) latest[r.mode] = { at: fin, secs }
+          }
+        }
+        const entry = Object.fromEntries(Object.entries(latest).map(([m, v]) => [m, v.secs])) as Partial<Record<AnalysisMode, number>>
+        if (Object.keys(entry).length > 0) {
+          setLastRunSecondsBySession((m) => ({ ...m, [sessionId]: { ...m[sessionId], ...entry } }))
+        }
+      } catch {
+        // 运行历史拉取失败不阻断其他内容展示
       }
     },
     [toast]
@@ -316,6 +391,7 @@ export default function App() {
   // ---- Run 模拟 ----
   const finishRun = useCallback(
     (sessionId: string, runMode: AnalysisMode) => {
+      recordLastRunSeconds(sessionId, runMode)
       setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'completed' } : s)))
       const version = (summariesRef.current[sessionId] ?? []).reduce((max, s) => Math.max(max, s.version), 0) + 1
       const summary = buildMockSummaries(runMode, version)
@@ -399,6 +475,8 @@ export default function App() {
   const finishRunBackend = useCallback(
     async (sessionId: string, status: RunStatusView) => {
       const failed = status.status === 'failed' || status.status === 'cancelled'
+      const runMode = runRef.current?.mode
+      if (!failed && runMode) recordLastRunSeconds(sessionId, runMode)
       setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: failed ? 'failed' : 'completed' } : s)))
       setRun((r) => (r ? { ...r, done: true, progress: failed ? r.progress : 100 } : r))
       if (failed) {
@@ -520,7 +598,7 @@ export default function App() {
       testModelProfile({ profileId })
         .then((view) => {
           if ('profileId' in view) {
-            updateProfile({ ...mapModelProfile(view), thinkingModeEnabled: target.thinkingModeEnabled })
+            updateProfile({ ...mapModelProfile(view), thinkingModeEnabled: target.thinkingModeEnabled, apiKey: target.apiKey })
           } else {
             updateProfile({
               ...target,
@@ -576,7 +654,7 @@ export default function App() {
 
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
-      // 离线模式剥离明文 Key：Key 仅供在线提交后端，不落入状态与 localStorage（界面始终掩码展示）
+      // 离线模式剥离明文 Key：明文仅在线回显与提交后端，不写 localStorage
       updateProfile({ ...p, apiKey: undefined })
       return
     }
@@ -589,7 +667,8 @@ export default function App() {
       apiKey: p.apiKey
     })
       .then((view) => {
-        const mapped = { ...mapModelProfile(view), thinkingModeEnabled: p.thinkingModeEnabled }
+        // 保留内存中的明文 Key，供设置界面持续回显（每次保存均提交后端）
+        const mapped = { ...mapModelProfile(view), thinkingModeEnabled: p.thinkingModeEnabled, apiKey: p.apiKey }
         // 在线新建首个档案时后端尚无默认配置，同步一次绑定，否则 Run 启动会因"未配置默认模型档案"失败
         if (defaultProfileId == null) {
           void saveModelBindings(buildBindingsRequest(view.profileId, bindings)).catch((e) =>
@@ -662,6 +741,36 @@ export default function App() {
       )
     }
   }
+
+  // ---- 会话删除（V4.4）：在线走后端级联删除，离线仅移除本地状态；同步清理按会话隔离的全部缓存 ----
+  const handleDeleteSession = useCallback(
+    (sessionId: string) => {
+      const strip = <T,>(m: Record<string, T>): Record<string, T> =>
+        Object.fromEntries(Object.entries(m).filter(([k]) => k !== sessionId)) as Record<string, T>
+      const removeLocally = () => {
+        const remaining = sessions.filter((s) => s.sessionId !== sessionId)
+        setSessions(remaining)
+        if (activeSessionId === sessionId) setActiveSessionId(remaining[0]?.sessionId ?? null)
+        setSummariesBySession((m) => strip(m))
+        setActiveVersionBySession((m) => strip(m))
+        setGoldenBySession((m) => strip(m))
+        setEvalBySession((m) => strip(m))
+        setMembersBySession((m) => strip(m))
+        setRelationsBySession((m) => strip(m))
+        setLastRunSecondsBySession((m) => strip(m))
+        setImportedMessages((m) => strip(m))
+        toast('会话已删除')
+      }
+      if (!backendOnline) {
+        removeLocally()
+        return
+      }
+      deleteSession(sessionId)
+        .then(removeLocally)
+        .catch((e) => toast(`删除会话失败：${errorMessageOf(e)}`, 'error'))
+    },
+    [sessions, activeSessionId, backendOnline, toast]
+  )
 
   // ---- 导入解析（原型：本地解析 JSON / 文本，无后端预检）----
   const parseImportFile = async (name: string, readText: () => Promise<string>): Promise<ImportFileItem> => {
@@ -846,7 +955,10 @@ export default function App() {
   const activeVersion = activeSessionId ? activeVersionBySession[activeSessionId] ?? null : null
   const golden = activeSessionId ? goldenBySession[activeSessionId] ?? null : null
   const evalRecords = activeSessionId ? evalBySession[activeSessionId] ?? [] : []
-  const messages = activeSessionId ? importedMessages[activeSessionId] ?? MOCK_MESSAGES : []
+  // 在线模式不使用 mock 回退：未加载完成时展示空视图（V4.4）
+  const messages = activeSessionId ? importedMessages[activeSessionId] ?? (backendOnline ? [] : MOCK_MESSAGES) : []
+  const members = activeSessionId ? membersBySession[activeSessionId] ?? (backendOnline ? [] : MOCK_MEMBERS) : []
+  const relations = activeSessionId ? relationsBySession[activeSessionId] ?? (backendOnline ? [] : MOCK_RELATIONS) : []
   const isRunningHere = run !== null && !run.done && run.sessionId === activeSessionId
   const analyzing = run !== null && !run.done
 
@@ -876,6 +988,7 @@ export default function App() {
           activeSessionId={activeSessionId}
           onSelect={setActiveSessionId}
           onImportFiles={handleImportFiles}
+          onDelete={handleDeleteSession}
         />
 
         {activeSession ? (
@@ -884,22 +997,32 @@ export default function App() {
             <AnalysisModeSwitcher
               mode={mode}
               disabled={analyzing}
-              elapsedSeconds={runForView?.elapsed ?? null}
               running={isRunningHere}
-              done={runForView?.done ?? summaries.length > 0}
+              elapsedSeconds={runForView?.elapsed ?? null}
+              lastRunSeconds={activeSessionId ? lastRunSecondsBySession[activeSessionId]?.[mode] ?? null : null}
               onChange={setMode}
             />
             </div>
 
             {mode === 'agent-workflow' ? (
               <AgentWorkflowPanel
-                steps={runForView?.steps ?? (summaries.some((s) => s.mode === 'agent-workflow') ? completedSteps() : waitingSteps())}
+                steps={
+                  runForView && runForView.mode === 'agent-workflow'
+                    ? runForView.steps
+                    : summaries.some((s) => s.mode === 'agent-workflow')
+                      ? completedSteps()
+                      : waitingSteps()
+                }
                 running={isRunningHere}
               />
             ) : (
               <SingleModelProgressPanel
                 running={isRunningHere}
-                done={runForView?.done ?? summaries.length > 0}
+                done={
+                  runForView && runForView.mode === 'single-model'
+                    ? runForView.done
+                    : summaries.some((s) => s.mode === 'single-model')
+                }
               />
             )}
 
@@ -910,14 +1033,14 @@ export default function App() {
                 groupName={activeSession.groupName}
                 timeRange={activeSession.timeRange}
                 messages={messages}
-                members={MOCK_MEMBERS}
+                members={members}
                 highlightMessageId={highlightMessageId}
                 onPersonClick={flashUser}
               />
               <CompactContextSidebar
                 groupName={activeSession.groupName}
-                members={MOCK_MEMBERS}
-                relations={MOCK_RELATIONS}
+                members={members}
+                relations={relations}
                 highlightUserId={highlightUserId}
               />
             </div>
