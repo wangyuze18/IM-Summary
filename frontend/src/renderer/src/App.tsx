@@ -33,6 +33,7 @@ import {
   getSummary,
   listEvaluationHistory,
   listModelProfiles,
+  listProfileModels,
   listSessions as listSessionsApi,
   listSummaries,
   mapAgentSteps,
@@ -561,6 +562,12 @@ export default function App() {
     )
   })
 
+  // 获取模型列表（§11.7）：仅后端在线时可用；已保存档案未填新 Key 时后端使用已存凭据
+  const handleFetchModels = async (req: Parameters<typeof listProfileModels>[0]) => {
+    const res = await listProfileModels(req)
+    return res.models
+  }
+
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
       // 离线模式剥离明文 Key：Key 仅供在线提交后端，不落入状态与 localStorage（界面始终掩码展示）
@@ -957,6 +964,7 @@ export default function App() {
           onTest={handleTestConnection}
           onToggleThinking={handleToggleThinking}
           onBindingChange={handleBindingChange}
+          onFetchModels={backendOnline ? handleFetchModels : undefined}
           onToast={toast}
         />
       )}

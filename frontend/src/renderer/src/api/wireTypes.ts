@@ -253,6 +253,20 @@ export interface TestProfileRequest {
   modelName?: string
 }
 
+/** POST /api/model-profiles/models 请求体（与 /test 一致） */
+export interface ListModelsRequest {
+  /** 携带则用已保存档案（可省略 apiKey），否则按草稿配置探测 */
+  profileId?: string
+  providerType?: ProviderType
+  baseUrl?: string
+  apiKey?: string
+}
+
+/** POST /api/model-profiles/models 返回；仅 openai-compatible 支持 */
+export interface ListModelsResponse {
+  models: string[]
+}
+
 /** GET /api/model-profiles/bindings */
 export interface ModelBindingsView {
   defaultProfileId: string | null

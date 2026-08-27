@@ -6,6 +6,8 @@ import type {
   EvaluationRecordView,
   ImportConfirmResponse,
   ImportValidateResponse,
+  ListModelsRequest,
+  ListModelsResponse,
   ModelBindingsView,
   ModelProfileView,
   ModelTestDraftView,
@@ -131,6 +133,14 @@ export function deleteModelProfile(profileId: string): Promise<{ deleted: boolea
  */
 export function testModelProfile(body: TestProfileRequest): Promise<ModelProfileView | ModelTestDraftView> {
   return httpJson('/api/model-profiles/test', { method: 'POST', json: body, timeoutMs: 30_000 })
+}
+
+/**
+ * 获取模型列表：携带 profileId 时用已保存档案（可省略 apiKey），否则按草稿探测。
+ * 仅 OpenAI 兼容协议支持，其他协议后端返回 MODEL_CALL_FAILED 错误体。
+ */
+export function listProfileModels(body: ListModelsRequest): Promise<ListModelsResponse> {
+  return httpJson('/api/model-profiles/models', { method: 'POST', json: body, timeoutMs: 30_000 })
 }
 
 export function getModelBindings(): Promise<ModelBindingsView> {
