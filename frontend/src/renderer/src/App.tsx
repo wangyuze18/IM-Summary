@@ -147,8 +147,10 @@ function loadProfiles(): { profiles: ModelProfile[]; defaultProfileId: string | 
 export default function App() {
   // ---- 会话 ----
   const [sessions, setSessions] = useState<ConversationSession[]>(MOCK_SESSIONS)
-  const [activeSessionId, setActiveSessionId] = useState<string | null>('s-001')
-  const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? null
+  // 在线模式会话列表为真实数据（不会命中 mock 回退）；离线时默认展示首个 mock 会话
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const mockFallback = sessions.find((s) => s.sessionId === MOCK_SESSIONS[0]?.sessionId) ?? null
+  const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? mockFallback
 
   // ---- 摘要 / 黄金摘要 / 评测（按会话隔离）----
   const [summariesBySession, setSummariesBySession] = useState<Record<string, SummaryResult[]>>({
@@ -208,7 +210,11 @@ export default function App() {
       if (cancelled) return
       backendOnlineRef.current = online
       setBackendOnline(online)
-      if (!online) return
+      if (!online) {
+        // 离线回退：默认选中首个 mock 会话，保持原型交互不变
+        setActiveSessionId(MOCK_SESSIONS[0]?.sessionId ?? null)
+        return
+      }
       try {
         const list = await listSessionsApi()
         if (cancelled) return

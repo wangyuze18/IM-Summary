@@ -1,7 +1,7 @@
 // LocalModelSettingsDialog —— 模型 API 设置抽屉（设计文档 §11）
 // 协议选择（OpenAI 兼容/Anthropic/自定义）+ Base URL + API Key（仅掩码）+ Model Name
 // 连接状态 / 思考模式状态 / 思考模式开关 / Agent 与模型绑定
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentKey, AgentModelBinding, ConnectionStatus, ModelProfile, ProviderType } from '../../../shared/types'
 import { AGENT_DEFS } from '../mockData'
 
@@ -16,7 +16,7 @@ interface Props {
   onTest: (profileId: string) => void
   onToggleThinking: (profileId: string, enabled: boolean) => void
   onBindingChange: (agentKey: AgentKey, profileId: string | undefined) => void
-  /** 获取模型列表（设计文档 §11.7）；离线模式不传入，按钮不可用 */
+  /** 获取模型列表（设计文档 §11.7）；离线模式不传入，此时仅保留手填 */
   onFetchModels?: (req: { profileId?: string; providerType?: ProviderType; baseUrl?: string; apiKey?: string }) => Promise<string[]>
   onToast: (text: string) => void
 }
@@ -61,15 +61,18 @@ export default function LocalModelSettingsDialog(props: Props) {
   const { profiles, defaultProfileId, bindings, onClose, onSave, onDelete, onSetDefault, onTest, onToggleThinking, onBindingChange, onFetchModels, onToast } = props
   const [editing, setEditing] = useState<(Omit<ModelProfile, 'profileId'> & { profileId?: string }) | null>(null)
   const [formError, setFormError] = useState('')
-  // 模型列表获取状态（§11.7）：列表非空且未切回自定义时，Model Name 以下拉框呈现
+  // 模型列表获取状态（§11.7）：满足条件自动拉取，列表非空且未切回自定义时，Model Name 以下拉框呈现
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState('')
   const [modelCustom, setModelCustom] = useState(false)
+  // 防抖与去重：同参数不重复请求；组件卸载后不再落盘状态
 
   const startEdit = (p?: ModelProfile) => {
     setFormError('')
     setModelOptions([])
     setModelsLoading(false)
+    setModelsError('')
     setModelCustom(false)
     setEditing(
       p
@@ -114,45 +117,74 @@ export default function LocalModelSettingsDialog(props: Props) {
     onToast('已复制配置，请重新测试连接')
   }
 
-  // 获取模型列表：仅 OpenAI 兼容协议 + Base URL 有效 + 有新 Key 或已存凭据时可用
+  // 自动获取模型列表（§11.7）：仅 OpenAI 兼容协议 + Base URL 有效 + 有新 Key 或已存凭据时触发；
+  // 输入变化 600ms 防抖重取，同参数去重，避免刷屏请求与重复拉取
   const baseUrlValid = !!editing && /^https?:\/\/.+/.test(editing.baseUrl.trim())
-  const fetchDisabledReason = !onFetchModels
-    ? '离线模式不可获取模型列表'
-    : editing?.providerType !== 'openai-compatible'
-      ? '仅 OpenAI 兼容协议支持自动获取模型列表'
-      : !baseUrlValid
-        ? '请先填写有效的 Base URL'
-        : !editing?.apiKey?.trim() && !editing?.profileId
-          ? '请先填写 API Key'
-          : ''
+  const autoFetchEnabled = !!onFetchModels
+    && !!editing
+    && editing.providerType === 'openai-compatible'
+    && baseUrlValid
+    && (!!editing.apiKey?.trim() || !!editing.profileId)
+  const autoFetchKey = !editing ? '' : [
+    editing.providerType,
+    editing.baseUrl.trim(),
+    editing.apiKey?.trim() ?? '',
+    editing.apiKey?.trim() ? '' : (editing.profileId ?? '')
+  ].join('|')
+  const lastFetchKeyRef = useRef('')
 
-  const handleFetchModels = async () => {
-    if (!editing || !onFetchModels || fetchDisabledReason) return
-    setModelsLoading(true)
-    try {
-      // 已保存档案且未填新 Key 时，后端使用已存凭据；否则按草稿探测
-      const req = editing.profileId && !editing.apiKey?.trim()
-        ? { profileId: editing.profileId }
-        : { providerType: editing.providerType, baseUrl: editing.baseUrl.trim(), apiKey: editing.apiKey?.trim() }
-      const models = await onFetchModels(req)
-      if (models.length === 0) {
-        setModelOptions([])
-        setModelCustom(true)
-        onToast('未获取到任何模型，请手动填写 Model Name')
-      } else {
-        setModelOptions(models)
-        setModelCustom(false)
-        if (!editing.modelName.trim()) {
-          setEditing({ ...editing, modelName: models[0] })
-        }
-        onToast(`已获取 ${models.length} 个模型`)
-      }
-    } catch (err) {
-      onToast(`获取模型列表失败：${err instanceof Error ? err.message : '未知错误'}`)
-    } finally {
-      setModelsLoading(false)
+  useEffect(() => {
+    if (!editing || !onFetchModels) return
+    if (!autoFetchEnabled) {
+      // 条件不再满足（如切换到 Anthropic 协议）：回到手填态，不保留旧列表误导选取
+      lastFetchKeyRef.current = ''
+      setModelOptions([])
+      setModelsError('')
+      setModelCustom(false)
+      return
     }
-  }
+    if (autoFetchKey === lastFetchKeyRef.current) return
+    lastFetchKeyRef.current = autoFetchKey
+
+    let alive = true
+    const timer = window.setTimeout(async () => {
+      setModelsLoading(true)
+      setModelsError('')
+      try {
+        // 已保存档案且未填新 Key 时，后端使用已存凭据；否则按草稿探测
+        const req = editing.profileId && !editing.apiKey?.trim()
+          ? { profileId: editing.profileId }
+          : { providerType: editing.providerType, baseUrl: editing.baseUrl.trim(), apiKey: editing.apiKey?.trim() }
+        const models = await onFetchModels(req)
+        if (!alive) return
+        setModelsLoading(false)
+        if (models.length === 0) {
+          setModelOptions([])
+          setModelCustom(true)
+          setModelsError('未获取到任何模型，请手动填写 Model Name')
+        } else {
+          setModelOptions(models)
+          setModelCustom(false)
+          // 仅在尚未填写时默认选中第一个，不覆盖用户已选模型
+          if (!editing.modelName.trim()) {
+            setEditing({ ...editing, modelName: models[0] })
+          }
+        }
+      } catch (err) {
+        if (!alive) return
+        setModelsLoading(false)
+        // 本次拉取失败不视为已获取：下次条件变化时允许重试，当前回退手填
+        setModelOptions([])
+        setModelsError(`获取模型列表失败：${err instanceof Error ? err.message : '未知错误'}`)
+      }
+    }, 600)
+
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFetchKey, autoFetchEnabled, onFetchModels])
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -240,19 +272,15 @@ export default function LocalModelSettingsDialog(props: Props) {
                     <input
                       style={{ flex: 1 }}
                       value={editing.modelName}
-                      placeholder="如 gpt-4o / claude-sonnet-4 / qwen-max，或点右侧获取模型列表"
+                      placeholder={modelsLoading ? '正在获取模型列表…' : '如 gpt-4o / claude-sonnet-4 / qwen-max'}
                       onChange={(e) => setEditing({ ...editing, modelName: e.target.value })}
                     />
                   )}
-                  <button
-                    className="btn small"
-                    disabled={modelsLoading || !!fetchDisabledReason}
-                    title={fetchDisabledReason || '获取该服务支持的全部模型供下拉选取'}
-                    onClick={handleFetchModels}
-                  >
-                    {modelsLoading ? '获取中…' : modelOptions.length > 0 ? '刷新列表' : '获取模型列表'}
-                  </button>
                 </div>
+                {modelsLoading && modelOptions.length === 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>正在自动获取该服务支持的模型列表…</div>
+                )}
+                {modelsError && <div className="error-text" style={{ marginTop: 4 }}>{modelsError}</div>}
               </div>
               {formError && <div className="error-text" style={{ marginBottom: 8 }}>{formError}</div>}
               <div className="form-actions">
