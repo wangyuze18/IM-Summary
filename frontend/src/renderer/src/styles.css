@@ -49,6 +49,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* 图标按钮（顶部齿轮 / 侧栏刷新） */
 .icon-only-btn { border: none; background: none; color: var(--text-2); width: 30px; height: 30px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0; }
 .icon-only-btn:hover { color: var(--primary); background: var(--primary-light); }
+.model-settings-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; color: var(--text-2); }
+.model-settings-btn:hover { background: var(--primary-light); }
 .analyze-btn { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ============ 顶部 WindowHeader ============ */
