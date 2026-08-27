@@ -24,10 +24,10 @@ function pct(v: number): string {
 
 function MetricsCards({ metrics }: { metrics: EvaluationMetrics }) {
   const cards = [
-    { v: pct(metrics.accuracy), n: '准确率', hint: '' },
-    { v: pct(metrics.recall), n: '召回率', hint: '' },
-    { v: pct(metrics.keyInformationOmissionRate), n: '关键信息遗漏率', hint: '越低越好' },
-    { v: metrics.rougeL.toFixed(2), n: '文本相似度', hint: '' }
+    { v: pct(metrics.accuracy), n: '准确率' },
+    { v: pct(metrics.recall), n: '召回率' },
+    { v: pct(metrics.keyInformationOmissionRate), n: '关键信息遗漏率' },
+    { v: metrics.rougeL.toFixed(2), n: '文本相似度' }
   ]
   return (
     <div className="metrics-cards">
@@ -35,7 +35,6 @@ function MetricsCards({ metrics }: { metrics: EvaluationMetrics }) {
         <div className="metric-card" key={c.n}>
           <div className="v">{c.v}</div>
           <div className="n">{c.n}</div>
-          {c.hint && <div className="hint">（{c.hint}）</div>}
         </div>
       ))}
     </div>
@@ -83,6 +82,22 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
     () => records.filter((r) => filter === 'all' || r.mode === filter),
     [records, filter]
   )
+
+  // 各指标列在当前筛选记录中的最优值：遗漏率取最小，其余取最大；无记录时为 null
+  const best = useMemo(() => {
+    if (filtered.length === 0) return null
+    const pick = (get: (m: EvaluationMetrics) => number, lowerBetter: boolean) =>
+      filtered.reduce((acc, r) => {
+        const v = get(r.metrics)
+        return acc === null || (lowerBetter ? v < acc : v > acc) ? v : acc
+      }, null as number | null)
+    return {
+      accuracy: pick((m) => m.accuracy, false),
+      recall: pick((m) => m.recall, false),
+      omission: pick((m) => m.keyInformationOmissionRate, true),
+      rougeL: pick((m) => m.rougeL, false)
+    }
+  }, [filtered])
 
   const handleExport = (format: 'csv' | 'json' | 'markdown') => {
     const base = `${groupName}_评测历史_${filter === 'all' ? '全部模式' : MODE_LABEL[filter]}`
@@ -133,29 +148,27 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
                   <th>模式</th>
                   <th>摘要版本</th>
                   <th>黄金版本</th>
-                  <th>准确率</th>
-                  <th>召回率</th>
-                  <th>遗漏率</th>
-                  <th>文本相似度</th>
-                  <th>状态</th>
+                  <th title="越高越好">准确率 ↑</th>
+                  <th title="越高越好">召回率 ↑</th>
+                  <th title="越低越好">遗漏率 ↓</th>
+                  <th title="越高越好">文本相似度 ↑</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.evaluationId} className={r.outdated ? 'outdated' : ''} onClick={() => setDetail(r)} title="点击查看该次评测详情">
+                  <tr key={r.evaluationId} onClick={() => setDetail(r)} title="点击查看该次评测详情">
                     <td>{r.evaluatedAt}</td>
                     <td><span className={`mode-badge ${r.mode}`}>{MODE_LABEL[r.mode]}</span></td>
                     <td>v{r.summaryVersion}</td>
                     <td>v{r.goldenVersion}</td>
-                    <td>{pct(r.metrics.accuracy)}</td>
-                    <td>{pct(r.metrics.recall)}</td>
-                    <td>{pct(r.metrics.keyInformationOmissionRate)}</td>
-                    <td>{r.metrics.rougeL.toFixed(2)}</td>
-                    <td>{r.outdated ? '已过期' : '有效'}</td>
+                    <td style={r.metrics.accuracy === best?.accuracy ? { fontWeight: 700 } : undefined}>{pct(r.metrics.accuracy)}</td>
+                    <td style={r.metrics.recall === best?.recall ? { fontWeight: 700 } : undefined}>{pct(r.metrics.recall)}</td>
+                    <td style={r.metrics.keyInformationOmissionRate === best?.omission ? { fontWeight: 700 } : undefined}>{pct(r.metrics.keyInformationOmissionRate)}</td>
+                    <td style={r.metrics.rougeL === best?.rougeL ? { fontWeight: 700 } : undefined}>{r.metrics.rougeL.toFixed(2)}</td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-3)', padding: 16 }}>当前筛选条件下暂无评测记录</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-3)', padding: 16 }}>当前筛选条件下暂无评测记录</td></tr>
                 )}
               </tbody>
             </table>
@@ -178,7 +191,7 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
               <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
               <div>准确率：<b>{pct(detail.metrics.accuracy)}</b></div>
               <div>召回率：<b>{pct(detail.metrics.recall)}</b></div>
-              <div>关键信息遗漏率：<b>{pct(detail.metrics.keyInformationOmissionRate)}</b>（越低越好）</div>
+              <div>关键信息遗漏率：<b>{pct(detail.metrics.keyInformationOmissionRate)}</b></div>
               <div>文本相似度：<b>{detail.metrics.rougeL.toFixed(2)}</b></div>
             </div>
           </div>
