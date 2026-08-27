@@ -23,5 +23,5 @@ imsummary:
   credential-secret: ${IMSUMMARY_SECRET:im-summary-demo-secret-key-2026}
   # Auditor 触发修订的最大次数，超过进入 warning
   max-revision: 2
-  # 模型调用超时（秒）
-  model-timeout-seconds: 120
+  # 模型调用超时（秒）；判官评测与长上下文 Agent 响应较慢，可用环境变量覆盖（V5.2）
+  model-timeout-seconds: ${IMSUMMARY_MODEL_TIMEOUT_SECONDS:300}
