@@ -1,39 +1,67 @@
-# 后端 (backend) — Java
+# 后端 (backend) — Java / Spring Boot
 
-企业 IM 智能摘要平台 Web 后台服务。
+企业 IM 智能摘要平台 Web 后台服务（Demo 级，不考虑高并发）。
 
-## 技术栈（确定）
+## 技术栈
 
-- **语言**: Java 17+
-- **框架**: Spring Boot 3.x
-- **实时通信**: Spring WebSocket（Agent 进度推送）
-- **持久化**: Spring Data JPA + 嵌入式数据库（Demo 级，如 H2/SQLite）
-- **构建工具**: Maven 或 Gradle
-- **HTTP 客户端**: 用于调用外部模型 API（Spring WebClient / OkHttp）
+- **Java 17 + Spring Boot 3.3**
+- **Spring Data JPA + H2**（文件模式持久化，数据位于 `backend/data/`）
+- **Spring WebSocket (STOMP)**：Agent 进度推送，HTTP 查询兜底
+- **Model Gateway**：协议适配器（openai-compatible / anthropic / custom），统一超时/重试/错误标准化
+- **凭据安全**：API Key AES-GCM 加密存储，接口仅返回掩码
 
-## 模块划分（对应设计文档）
+## 快速开始
 
-```
-backend/
-└── src/main/java/com/imsummary/
-    ├── api/              # REST Controller + WebSocket 端点
-    ├── service/          # Session / Analysis / Evaluation / Model 服务
-    ├── agent/            # Agent Orchestrator + 7-Agent 执行器 + 单模型运行器
-    ├── gateway/          # Model Gateway + 协议 Adapter (OpenAI/Anthropic)
-    ├── domain/           # 领域对象与实体
-    ├── repository/       # 数据访问
-    └── config/           # 配置与安全
+```bash
+cd backend
+mvn spring-boot:run        # 启动 http://localhost:8080
+mvn compile                # 仅编译验证
+mvn package                # 打包为 target/im-summary-backend-*.jar
 ```
 
-## 关键实现约束
+## 模块结构
 
-1. Demo 级别，不考虑高并发与分布式扩展
-2. API Key 只存加密/引用，不明文返回
-3. AgentRun 状态持久化，支持桌面端断线恢复
-4. 双分析模式：`agent-workflow`（7-Agent）与 `single-model`（基线）
+```
+backend/src/main/java/com/imsummary/
+├── api/              # REST Controller（imports/sessions/runs/summaries/evaluations/model-profiles）
+├── agent/            # AgentOrchestrator（7-Agent DAG + 单模型基线）、PromptTemplates
+├── gateway/          # ModelGateway + 协议适配器（OpenAI兼容/Anthropic/Custom）
+├── service/          # Import / Session / Analysis / Evaluation / ModelProfile / MarkdownRenderer
+├── domain/           # JPA 实体（会话、运行、摘要、黄金摘要、评测记录、模型配置）
+├── repository/       # Spring Data JPA
+├── security/         # CredentialStore（凭据加密）
+└── config/           # WebSocket 配置、全局异常映射
+```
 
-## 设计依据
+## 关键 API
 
-详见 `docs/design/后端设计文档_V5_最终版.md`
+| 能力 | 接口 |
+|------|------|
+| 导入预检查 | `POST /api/imports/validate`（multipart） |
+| 确认导入 | `POST /api/imports/{importId}/confirm` |
+| 会话列表/详情 | `GET /api/sessions` / `GET /api/sessions/{id}` |
+| 组织关系 | `GET /api/sessions/{id}/organization` |
+| 启动分析 | `POST /api/sessions/{id}/runs`（body: `{"mode":"agent-workflow\|single-model","targetUserId":"?"}`） |
+| 运行状态 | `GET /api/runs/{runId}`（HTTP 兜底） |
+| 进度订阅 | STOMP `/topic/runs/{runId}`（endpoint `/ws`） |
+| 摘要/导出 | `GET /api/sessions/{id}/summary`、`GET /api/summaries/{id}/export?type=markdown\|json` |
+| 黄金摘要 | 仅随导入携带，无手动接口；未携带时评测返回 `409 NOT_EVALUABLE` |
+| 评测 | `POST /api/sessions/{id}/evaluations`、`GET .../evaluations`、`GET .../evaluations/export?format=csv\|json\|markdown` |
+| 模型配置 | `GET/POST/DELETE /api/model-profiles`、`POST /api/model-profiles/test`、`GET/PUT /api/model-profiles/bindings` |
 
-> 当前阶段仅建立目录，暂不进行代码开发。
+## 设计约束实现说明
+
+- **双分析模式**：`agent-workflow`（7-Agent DAG，Stage 2/5 并行，Auditor 修订闭环，最大修订次数可配）；`single-model`（单模型基线，不审核，`auditStatus=not_audited`）
+- **Run 配置快照**：启动前解析"默认档案 + Agent 覆盖"，无效则阻断；运行中修改配置不影响当前 Run
+- **评测**：Accuracy/Recall/遗漏率由判官模型计算，ROUGE-L 本地计算；历史记录含 `mode` 字段，无自动对比
+- **评测过期**：新摘要产生后旧评测记录自动标记 `outdated`
+- **导入校验分级**：ERROR 阻断 / WARNING 允许 / INFO 提示；messageId 唯一性校验
+- 详细契约见 `docs/design/后端设计文档_V5_最终版.md`
+
+## 示例数据
+
+`backend/samples/sample-session.json` 符合导入数据规范（含用户画像、关系与黄金摘要），可用于冒烟测试：
+
+```bash
+curl -F "file=@backend/samples/sample-session.json" http://localhost:8080/api/imports/validate
+```

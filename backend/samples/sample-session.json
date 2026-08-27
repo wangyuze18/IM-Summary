@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "title": "1.0.4版本发布讨论群",
+    "targetUserId": "u3"
+  },
+  "group": {
+    "groupName": "1.0.4版本发布讨论群",
+    "groupType": "项目群",
+    "members": ["u1", "u2", "u3", "u4"],
+    "targetPeriod": {
+      "start": "2026-08-25T09:00:00",
+      "end": "2026-08-25T18:30:00"
+    }
+  },
+  "messages": [
+    {
+      "messageId": "m01",
+      "timestamp": "2026-08-25T09:00:00",
+      "sender": "@刘文强",
+      "content": "1.0.4版本今天能发布吗？"
+    },
+    {
+      "messageId": "m02",
+      "timestamp": "2026-08-25T09:02:00",
+      "sender": "@郭志远",
+      "content": "语音模块还有个bug没修完"
+    },
+    {
+      "messageId": "m03",
+      "timestamp": "2026-08-25T09:03:00",
+      "sender": "@刘文强",
+      "content": "那先修完语音的问题再发"
+    },
+    {
+      "messageId": "m04",
+      "timestamp": "2026-08-25T09:05:00",
+      "sender": "@郭志远",
+      "content": "好的，我下午修完"
+    },
+    {
+      "messageId": "m05",
+      "timestamp": "2026-08-25T09:10:00",
+      "sender": "@刘文强",
+      "content": "👍"
+    },
+    {
+      "messageId": "m06",
+      "timestamp": "2026-08-25T10:20:00",
+      "sender": "@王五",
+      "content": "@郭志远 登录接口字段变更记得同步一下，影响权限认证"
+    },
+    {
+      "messageId": "m07",
+      "timestamp": "2026-08-25T14:00:00",
+      "sender": "@郭志远",
+      "content": "语音问题修完了，1.0.4定在8月30号发布"
+    },
+    {
+      "messageId": "m08",
+      "timestamp": "2026-08-25T14:05:00",
+      "sender": "@刘文强",
+      "content": "可以，发版前把版本列表更新到PingCode"
+    },
+    {
+      "messageId": "m09",
+      "timestamp": "2026-08-25T18:30:00",
+      "sender": "@王五",
+      "content": "用户中心迁移到k8s后监控还没接上，有问题要及时反馈"
+    }
+  ],
+  "users": [
+    {
+      "userId": "u1",
+      "name": "刘文强",
+      "employeeNo": "E1001",
+      "position": "项目经理",
+      "department": "移动端项目组",
+      "responsibilities": ["版本发布管理", "发版流程审批"]
+    },
+    {
+      "userId": "u2",
+      "name": "郭志远",
+      "employeeNo": "E1002",
+      "position": "软件开发工程师",
+      "department": "移动端项目组",
+      "responsibilities": ["语音模块", "后端服务迁移"]
+    },
+    {
+      "userId": "u3",
+      "name": "王五",
+      "employeeNo": "E1003",
+      "position": "软件开发工程师",
+      "department": "平台组",
+      "responsibilities": ["登录模块", "权限认证"]
+    },
+    {
+      "userId": "u4",
+      "name": "陈经理",
+      "employeeNo": "E1004",
+      "position": "部门经理",
+      "department": "平台组",
+      "responsibilities": ["团队管理"]
+    }
+  ],
+  "relationships": [
+    {
+      "sourceUserId": "u3",
+      "targetUserId": "u4",
+      "relationType": "reports_to",
+      "direction": "forward",
+      "scope": "组织"
+    },
+    {
+      "sourceUserId": "u3",
+      "targetUserId": "u2",
+      "relationType": "depends_on",
+      "direction": "forward",
+      "scope": "登录后端接口"
+    }
+  ],
+  "goldenSummary": {
+    "content": "# 工作群聊分析简报（黄金摘要）\n**群组名称:** 1.0.4版本发布讨论群 \n**报告周期:** 2026-08-25 \n\n### 摘要\n* 1.0.4版本因语音模块bug推迟，修复后定于8月30日发布。\n* 登录接口字段变更需同步，影响权限认证模块。\n* 用户中心已迁移至k8s，监控接入待完善。\n\n### 决议事项\n* 1.0.4版本修复语音问题后于8月30日发布。\n* 发版前需将版本列表更新至PingCode。\n\n### 待办事项\n* @郭志远 修复语音模块bug（已完成）。\n* @刘文强 更新PingCode版本列表，截止2026-08-30。\n\n### 待解决问题与关键信息\n* 用户中心k8s迁移后监控未接入，异常需及时反馈。"
+  }
+}
