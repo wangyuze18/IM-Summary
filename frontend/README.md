@@ -30,8 +30,9 @@ src/
 ├─ preload/index.ts     # contextBridge 暴露最小文件能力（contextIsolation 开启）
 ├─ shared/types.ts      # 前端数据视图契约（对齐设计文档 §14）
 └─ renderer/src/
-   ├─ App.tsx                        # DesktopAppShell：全局状态与 Run 模拟
-   ├─ mockData.ts                    # 原型 Mock 数据（未接后端）
+   ├─ App.tsx                        # DesktopAppShell：全局状态与双数据源接入（在线 REST / 离线 mock）
+   ├─ api/                           # 请求层：httpClient（传输）/ services（端点）/ mappers（契约转换）/ useRequest（状态）
+   ├─ mockData.ts                    # 原型 Mock 数据（离线回退数据源）
    ├─ download.ts                    # 导出工具（Blob 下载）
    └─ components/                    # 组件命名对齐设计文档 §15
       ├─ WindowHeader.tsx
@@ -51,16 +52,17 @@ examples/
 
 ## 当前阶段说明
 
-- **可交互原型**：不连接 Web 后台；Run 执行进度、评测指标、模型连接探测均为前端本地模拟，数据契约与《前端设计文档 V4.1》§14 保持一致，便于后续平滑替换为 HTTP/WebSocket 真实数据源。
+- **双数据源**：启动时探测后端（默认 `http://localhost:8080`，可用环境变量 `VITE_API_BASE_URL` 覆盖）；在线时会话、摘要、评测历史、模型配置均来自 REST API，导入走后端预检查 + 确认，Run 进度通过轮询 `GET /api/runs/{runId}` 获取；后端不可达时静默回退本地 mock，原型行为不变。
+- **请求错误处理**：后端统一错误体 `{ errorCode, message }` 解析为 `ApiError`，网络/超时/解析失败分类处理，错误经界面 Toast 提示。
 - 黄金摘要仅来自导入文件 `goldenSummary` 字段；未携带时黄金摘要区与评测区整体隐藏。
-- 模型配置持久化在 `localStorage`（原型），API Key 仅掩码展示，正式环境由后端保管凭据。
-- 评测导出（CSV/JSON/Markdown）当前为前端本地导出，正式环境走后端导出接口。
+- 模型配置：在线时以后端为准（凭据由后端加密保管，响应仅含掩码）；离线原型持久化在 `localStorage`。
+- 评测/摘要导出：界面按钮当前仍为前端本地导出，请求层已提供后端导出接口客户端（`downloadSummary` / `downloadEvaluationExport`），待后续界面接入。
 
 ## 开发要求
 
 - 桌面宽屏工作台布局（1440×900 基准，1280 最低；低于阈值右侧辅助区折叠）
 - 系统文件选择器 + 拖拽导入（通过主进程原生对话框），支持多选批量导入
-- WebSocket 订阅 Agent 进度，断线重连后通过 HTTP 兜底恢复（待接入）
+- Run 进度当前采用 REST 轮询（WebSocket 的 HTTP 兜底通道）；WebSocket 订阅待接入，断线重连后可恢复
 - API Key 不落地渲染进程明文存储，仅掩码展示
 
 ## 设计依据
