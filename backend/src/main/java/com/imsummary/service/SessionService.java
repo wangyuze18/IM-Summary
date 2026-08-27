@@ -116,6 +116,23 @@ public class SessionService {
         return graph;
     }
 
+    /** 黄金摘要内容在线查看（V5.4）：未携带时 goldenProvided=false、content 为 null */
+    public Map<String, Object> getGoldenSummary(String sessionId) {
+        ConversationSessionEntity s = requireSession(sessionId);
+        Map<String, Object> view = new LinkedHashMap<>();
+        var golden = goldenSummaryRepository.findTopBySessionIdOrderByGoldenVersionDesc(sessionId);
+        if (s.isGoldenProvided() && golden.isPresent()) {
+            view.put("goldenProvided", true);
+            view.put("goldenVersion", golden.get().getGoldenVersion());
+            view.put("content", golden.get().getContent());
+        } else {
+            view.put("goldenProvided", false);
+            view.put("goldenVersion", null);
+            view.put("content", null);
+        }
+        return view;
+    }
+
     /** 删除会话：事务内级联清理运行/步骤/摘要/评测/黄金摘要，避免孤儿记录 */
     @Transactional
     public void deleteSession(String sessionId) {

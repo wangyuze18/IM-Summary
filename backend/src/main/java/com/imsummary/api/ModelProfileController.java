@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * 模型配置接口：档案 CRUD、测试连接（支持未保存草稿）、Agent 绑定。
- * 所有响应中 API Key 仅以掩码出现。
+ * 除专用明文接口 /{profileId}/api-key（V5.4，Demo 级本地产品）外，所有响应中 API Key 仅以掩码出现。
  */
 @RestController
 @RequestMapping("/api/model-profiles")
@@ -42,6 +42,12 @@ public class ModelProfileController {
     public Map<String, Object> delete(@PathVariable String profileId) {
         profileService.deleteProfile(profileId);
         return Map.of("deleted", true);
+    }
+
+    /** API Key 明文获取（V5.4）：供前端回显编辑，每次保存重新提交 */
+    @GetMapping("/{profileId}/api-key")
+    public Map<String, Object> apiKey(@PathVariable String profileId) {
+        return profileService.revealApiKey(profileId);
     }
 
     /**

@@ -35,6 +35,12 @@ public class SessionController {
         return sessionService.getOrganizationGraph(sessionId);
     }
 
+    /** 黄金摘要内容在线查看（V5.4）：仅用于前端对照展示与评测溯源 */
+    @GetMapping("/{sessionId}/golden-summary")
+    public Map<String, Object> goldenSummary(@PathVariable String sessionId) {
+        return sessionService.getGoldenSummary(sessionId);
+    }
+
     @GetMapping("/{sessionId}/runs")
     public List<Map<String, Object>> runs(@PathVariable String sessionId) {
         return analysisService.listRuns(sessionId);

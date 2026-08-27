@@ -135,6 +135,18 @@ public class ModelProfileService {
     }
 
     /**
+     * API Key 明文获取（V5.4）：Demo 级本地产品专用，供前端回显与编辑；
+     * 其余所有接口响应仍仅返回掩码。
+     */
+    public Map<String, Object> revealApiKey(String profileId) {
+        ModelApiProfileEntity entity = profileRepository.findById(profileId)
+                .orElseThrow(() -> new NoSuchElementException("配置不存在：" + profileId));
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("apiKey", hasCredential(entity) ? credentialSafeDecrypt(entity) : null);
+        return view;
+    }
+
+    /**
      * 获取模型列表（V5.2）：携带 profileId 时用已保存档案（未给 apiKey 则解密已存凭据），
      * 否则按草稿 providerType + baseUrl + apiKey 探测。返回结构不含明文 Key。
      */
