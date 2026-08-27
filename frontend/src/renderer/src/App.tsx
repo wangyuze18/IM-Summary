@@ -21,6 +21,35 @@ import {
   MOCK_SESSIONS,
   buildMockSummaries
 } from './mockData'
+import {
+  agentKeyFromBackend,
+  agentKeyToBackend,
+  confirmImport as confirmImportApi,
+  deleteModelProfile,
+  errorMessageOf,
+  getModelBindings,
+  getRunStatus,
+  getSessionDetail,
+  getSummary,
+  listEvaluationHistory,
+  listModelProfiles,
+  listSessions as listSessionsApi,
+  listSummaries,
+  mapAgentSteps,
+  mapEvaluationRecord,
+  mapModelProfile,
+  mapRawMessages,
+  mapSessionListItem,
+  mapSummary,
+  probeBackend,
+  saveModelBindings,
+  saveModelProfile,
+  startEvaluation as startEvaluationApi,
+  startRun as startRunApi,
+  testModelProfile,
+  validateImport as validateImportApi
+} from './api'
+import type { BackendRunStatus, RunStatusView, SaveBindingsRequest } from './api'
 import type {
   AgentKey,
   AgentModelBinding,
@@ -47,6 +76,12 @@ const AGENT_PLAN: { key: AgentKey; start: number; duration: number }[] = [
 ]
 const AGENT_TOTAL = 7700
 const SINGLE_TOTAL = 2600
+
+// 后端运行终态（对应 AgentRunEntity.status）
+const RUN_TERMINAL_STATUSES: BackendRunStatus[] = ['completed', 'completed_with_warning', 'failed', 'cancelled']
+
+// 后端携带黄金摘要但暂无内容读取接口；占位内容保证评测区可见（§8.2：仅未携带时隐藏）
+const GOLDEN_ONLINE_PLACEHOLDER = '> 该会话已携带黄金摘要（仅用于评测），后端暂未提供内容在线查看。'
 
 interface RunState {
   sessionId: string
@@ -153,10 +188,98 @@ export default function App() {
     window.setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), 2600)
   }, [])
 
-  // 配置持久化（应用重启后恢复，设计文档验收 18）
+  // ---- 后端连接与双数据源 ----
+  // 启动探测后端：在线时数据来自 REST API；离线时静默回退本地 mock，原型行为不变
+  const [backendOnline, setBackendOnline] = useState(false)
+  const backendOnlineRef = useRef(false)
+
+  // 配置持久化（应用重启后恢复，设计文档验收 18）；后端在线时配置以后端为准，不回写本地
   useEffect(() => {
+    if (backendOnlineRef.current) return
     localStorage.setItem('im-summary-model-settings', JSON.stringify({ profiles, defaultProfileId }))
   }, [profiles, defaultProfileId])
+
+  // 启动探测：后端可达时切换为真实数据源，加载会话列表与模型配置
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const online = await probeBackend()
+      if (cancelled) return
+      backendOnlineRef.current = online
+      setBackendOnline(online)
+      if (!online) return
+      try {
+        const list = await listSessionsApi()
+        if (cancelled) return
+        setSessions(list.map(mapSessionListItem))
+        setActiveSessionId(list[0]?.sessionId ?? null)
+      } catch (e) {
+        if (!cancelled) toast(`会话列表加载失败：${errorMessageOf(e)}`, 'error')
+      }
+      try {
+        const [profileViews, bindingsView] = await Promise.all([listModelProfiles(), getModelBindings()])
+        if (cancelled) return
+        setModelSettings({
+          profiles: profileViews.map(mapModelProfile),
+          defaultProfileId: bindingsView.defaultProfileId
+        })
+        setBindings(
+          Object.entries(bindingsView.overrides).flatMap(([backendKey, profileId]) => {
+            const agentKey = agentKeyFromBackend(backendKey)
+            return agentKey ? [{ agentKey, profileId }] : []
+          })
+        )
+      } catch (e) {
+        if (!cancelled) toast(`模型配置加载失败：${errorMessageOf(e)}`, 'error')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [toast])
+
+  // 从后端加载指定会话的详情 / 摘要 / 评测历史（失败项保留当前数据并 Toast 提示）
+  const refreshSessionFromBackend = useCallback(
+    async (sessionId: string) => {
+      try {
+        const detail = await getSessionDetail(sessionId)
+        if (detail.messages && detail.messages.length > 0) {
+          setImportedMessages((m) => ({ ...m, [sessionId]: mapRawMessages(detail.messages!, detail.users ?? []) }))
+        }
+        if (detail.goldenProvided) {
+          setGoldenBySession((g) =>
+            g[sessionId] ? g : { ...g, [sessionId]: { goldenVersion: 1, markdown: GOLDEN_ONLINE_PLACEHOLDER } }
+          )
+        }
+      } catch (e) {
+        toast(`会话详情加载失败：${errorMessageOf(e)}`, 'error')
+      }
+      try {
+        // 列表接口不含全文，逐版本拉取完整摘要（版本数通常很少）
+        const summaryItems = await listSummaries(sessionId)
+        const fullSummaries = await Promise.all(summaryItems.map((s) => getSummary(sessionId, { version: s.version })))
+        setSummariesBySession((map) => ({ ...map, [sessionId]: fullSummaries.map(mapSummary) }))
+        if (fullSummaries.length > 0) {
+          setActiveVersionBySession((av) => ({ ...av, [sessionId]: fullSummaries[0].version }))
+        }
+      } catch (e) {
+        toast(`摘要加载失败：${errorMessageOf(e)}`, 'error')
+      }
+      try {
+        const records = await listEvaluationHistory(sessionId)
+        setEvalBySession((map) => ({ ...map, [sessionId]: records.map(mapEvaluationRecord) }))
+      } catch {
+        // 评测历史拉取失败不阻断其他内容展示
+      }
+    },
+    [toast]
+  )
+
+  // 在线时切换选中会话即加载真实数据（写入按 sessionId 隔离，无跨会话竞态）
+  useEffect(() => {
+    if (!backendOnline || !activeSessionId) return
+    void refreshSessionFromBackend(activeSessionId)
+  }, [backendOnline, activeSessionId, refreshSessionFromBackend])
 
   const clearTimers = () => {
     timersRef.current.forEach((t) => window.clearTimeout(t))
@@ -265,8 +388,90 @@ export default function App() {
     [finishRun]
   )
 
+  // ---- Run（后端数据源）：API 启动 + 轮询状态，进度与各 Agent 状态由后端给出，前端只展示 ----
+  const finishRunBackend = useCallback(
+    async (sessionId: string, status: RunStatusView) => {
+      const failed = status.status === 'failed' || status.status === 'cancelled'
+      setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: failed ? 'failed' : 'completed' } : s)))
+      setRun((r) => (r ? { ...r, done: true, progress: failed ? r.progress : 100 } : r))
+      if (failed) {
+        toast(`分析失败：${status.errorMessage ?? status.errorCode ?? '未知错误'}`, 'error')
+        return
+      }
+      // 与原型行为对齐：分析完成后自动评测一次（无黄金摘要时后端返回 NOT_EVALUABLE，静默忽略）
+      try {
+        await startEvaluationApi(sessionId)
+      } catch {
+        // 评测失败不影响摘要可用性（后端同语义）
+      }
+      await refreshSessionFromBackend(sessionId)
+      toast('分析完成，摘要与评测已更新')
+    },
+    [refreshSessionFromBackend, toast]
+  )
+
+  const startRunBackend = useCallback(
+    async (sessionId: string, runMode: AnalysisMode) => {
+      clearTimers()
+      const startedAt = Date.now()
+      setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'analyzing' } : s)))
+      setRun({ sessionId, mode: runMode, startedAt, elapsed: 0, progress: 0, steps: waitingSteps(), done: false })
+
+      // 已进行时间计时（§6.4：从 Run 启动时间累计，不显示预计剩余时间）
+      const tick = window.setInterval(() => {
+        setRun((r) => (r && !r.done ? { ...r, elapsed: Math.floor((Date.now() - r.startedAt) / 1000) } : r))
+      }, 500)
+      timersRef.current.push(tick)
+
+      let runId: string
+      try {
+        const started = await startRunApi(sessionId, { mode: runMode })
+        runId = started.runId
+      } catch (e) {
+        setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'failed' } : s)))
+        setRun((r) => (r ? { ...r, done: true } : r))
+        toast(`启动分析失败：${errorMessageOf(e)}`, 'error')
+        return
+      }
+
+      // 轮询运行状态（WebSocket 的 HTTP 兜底；运行状态持久化在后端，断线可恢复）
+      const planKeys = AGENT_PLAN.map((p) => p.key)
+      // 重入保护：上一轮请求在途时跳过，避免乱序进度覆盖与终态重复处理（重复触发评测）
+      let polling = false
+      let finished = false
+      const poll = window.setInterval(async () => {
+        if (polling || finished) return
+        polling = true
+        try {
+          const status = await getRunStatus(runId)
+          setRun((r) =>
+            r && !r.done
+              ? { ...r, progress: status.overallProgress, steps: mapAgentSteps(status.agentSteps, planKeys) }
+              : r
+          )
+          if (RUN_TERMINAL_STATUSES.includes(status.status)) {
+            finished = true
+            window.clearInterval(poll)
+            await finishRunBackend(sessionId, status)
+          }
+        } catch {
+          // 单次轮询失败等待下一轮；不阻断运行展示
+        } finally {
+          polling = false
+        }
+      }, 1000)
+      timersRef.current.push(poll)
+    },
+    [finishRunBackend, toast]
+  )
+
   const handleStartAnalysis = () => {
     if (!activeSession || !canAnalyze || run && !run.done && run.sessionId === activeSessionId) return
+    // 后端在线：模型配置校验由后端在启动时完成，前端不做本地模拟校验
+    if (backendOnline) {
+      void startRunBackend(activeSession.sessionId, mode)
+      return
+    }
     if (defaultProfile!.connectionStatus === 'untested') {
       // 已保存、未测试：启动时先轻量校验（§11.6）
       toast('默认配置未测试，正在轻量校验…')
@@ -304,6 +509,34 @@ export default function App() {
     const target = profiles.find((p) => p.profileId === profileId)
     if (!target) return
     updateProfile({ ...target, connectionStatus: 'testing', lastError: undefined })
+    if (backendOnline) {
+      testModelProfile({ profileId })
+        .then((view) => {
+          if ('profileId' in view) {
+            updateProfile({ ...mapModelProfile(view), thinkingModeEnabled: target.thinkingModeEnabled })
+          } else {
+            updateProfile({
+              ...target,
+              connectionStatus: view.connectionStatus,
+              thinkingModeSupported: view.thinkingModeSupported,
+              lastError: view.lastErrorMessage ?? undefined,
+              lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+            })
+          }
+          if (view.connectionStatus === 'available') toast('连接测试通过')
+          else toast(view.lastErrorMessage ?? '连接测试失败', 'error')
+        })
+        .catch((e) => {
+          updateProfile({
+            ...target,
+            connectionStatus: 'failed',
+            lastError: errorMessageOf(e),
+            lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+          })
+          toast('连接测试失败', 'error')
+        })
+      return
+    }
     window.setTimeout(() => {
       if (/invalid|localhost:0/.test(target.baseUrl)) {
         updateProfile({ ...target, connectionStatus: 'failed', thinkingModeSupported: null, lastError: '连接失败：无法解析目标地址', lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false }) })
@@ -313,6 +546,108 @@ export default function App() {
         toast('连接测试通过')
       }
     }, 1000)
+  }
+
+  // ---- 模型配置（后端数据源）：档案增删改 / 测试 / 绑定均走 API，本地状态跟随响应更新 ----
+  // 本地绑定状态 → 后端绑定请求体（Agent key 转为后端下划线命名）
+  const buildBindingsRequest = (nextDefault: string | null, nextBindings: AgentModelBinding[]): SaveBindingsRequest => ({
+    defaultProfileId: nextDefault,
+    // 后端 thinkingEnabled 为全局开关，以“任一档案启用”近似映射每档案开关
+    thinkingEnabled: profiles.some((p) => p.thinkingModeEnabled),
+    overrides: Object.fromEntries(
+      nextBindings
+        .filter((b) => b.profileId)
+        .map((b) => [agentKeyToBackend(b.agentKey), b.profileId as string])
+    )
+  })
+
+  const handleSaveProfile = (p: ModelProfile) => {
+    if (!backendOnline) {
+      // 离线模式剥离明文 Key：Key 仅供在线提交后端，不落入状态与 localStorage（界面始终掩码展示）
+      updateProfile({ ...p, apiKey: undefined })
+      return
+    }
+    saveModelProfile({
+      profileId: p.profileId,
+      displayName: p.displayName,
+      providerType: p.providerType,
+      baseUrl: p.baseUrl,
+      modelName: p.modelName,
+      apiKey: p.apiKey
+    })
+      .then((view) => {
+        const mapped = { ...mapModelProfile(view), thinkingModeEnabled: p.thinkingModeEnabled }
+        // 在线新建首个档案时后端尚无默认配置，同步一次绑定，否则 Run 启动会因"未配置默认模型档案"失败
+        if (defaultProfileId == null) {
+          void saveModelBindings(buildBindingsRequest(view.profileId, bindings)).catch((e) =>
+            toast(`同步默认配置失败：${errorMessageOf(e)}`, 'error')
+          )
+        }
+        setModelSettings((cur) => {
+          const hasServerId = cur.profiles.some((x) => x.profileId === view.profileId)
+          return {
+            // 新增档案时后端生成新 id，需移除客户端临时 id
+            profiles: hasServerId
+              ? cur.profiles.map((x) => (x.profileId === view.profileId ? mapped : x))
+              : [...cur.profiles.filter((x) => x.profileId !== p.profileId), mapped],
+            defaultProfileId: cur.defaultProfileId ?? view.profileId
+          }
+        })
+      })
+      .catch((e) => toast(`保存模型配置失败：${errorMessageOf(e)}`, 'error'))
+  }
+
+  const handleDeleteProfile = (profileId: string) => {
+    const removeLocally = () =>
+      setModelSettings((cur) => ({
+        profiles: cur.profiles.filter((p) => p.profileId !== profileId),
+        defaultProfileId: cur.defaultProfileId === profileId ? null : cur.defaultProfileId
+      }))
+    if (!backendOnline) {
+      removeLocally()
+      return
+    }
+    deleteModelProfile(profileId)
+      .then(removeLocally)
+      .catch((e) => toast(errorMessageOf(e), 'error'))
+  }
+
+  const handleSetDefaultProfile = (profileId: string) => {
+    if (!backendOnline) {
+      setModelSettings((cur) => ({ ...cur, defaultProfileId: profileId }))
+      return
+    }
+    saveModelBindings(buildBindingsRequest(profileId, bindings))
+      .then(() => setModelSettings((cur) => ({ ...cur, defaultProfileId: profileId })))
+      .catch((e) => toast(`设置默认配置失败：${errorMessageOf(e)}`, 'error'))
+  }
+
+  const handleToggleThinking = (profileId: string, enabled: boolean) => {
+    const p = profiles.find((x) => x.profileId === profileId)
+    if (!p) return
+    updateProfile({ ...p, thinkingModeEnabled: enabled })
+    if (backendOnline) {
+      const nextProfiles = profiles.map((x) => (x.profileId === profileId ? { ...x, thinkingModeEnabled: enabled } : x))
+      saveModelBindings({
+        defaultProfileId,
+        thinkingEnabled: nextProfiles.some((x) => x.thinkingModeEnabled),
+        overrides: Object.fromEntries(
+          bindings.filter((b) => b.profileId).map((b) => [agentKeyToBackend(b.agentKey), b.profileId as string])
+        )
+      }).catch((e) => toast(`保存思考模式失败：${errorMessageOf(e)}`, 'error'))
+    }
+  }
+
+  const handleBindingChange = (agentKey: AgentKey, profileId: string | undefined) => {
+    const next = profileId
+      ? [...bindings.filter((b) => b.agentKey !== agentKey), { agentKey, profileId }]
+      : bindings.filter((b) => b.agentKey !== agentKey)
+    setBindings(next)
+    if (backendOnline) {
+      saveModelBindings(buildBindingsRequest(defaultProfileId, next)).catch((e) =>
+        toast(`保存模型绑定失败：${errorMessageOf(e)}`, 'error')
+      )
+    }
   }
 
   // ---- 导入解析（原型：本地解析 JSON / 文本，无后端预检）----
@@ -369,16 +704,65 @@ export default function App() {
     }
   }
 
+  // ---- 导入预检查（后端数据源）：上传后端校验，校验问题映射为文件状态 ----
+  const validateImportFile = async (f: { name: string; path?: string; file?: File }, id: string): Promise<ImportFileItem> => {
+    const item: ImportFileItem = { id, name: f.name, status: 'checking', warnings: [] }
+    try {
+      let blob: Blob
+      if (f.file) {
+        blob = f.file
+      } else if (f.path && window.desktopApi) {
+        blob = new Blob([await window.desktopApi.readTextFile(f.path)], { type: 'application/octet-stream' })
+      } else {
+        throw new Error('无法读取文件')
+      }
+      const res = await validateImportApi(blob, f.name)
+      if (res.status !== 'ready_to_confirm' || !res.importId) {
+        const firstError = res.validation.find((v) => v.level === 'ERROR')
+        return {
+          ...item,
+          status: 'failed',
+          error: firstError?.message ?? '文件校验未通过',
+          warnings: res.validation.filter((v) => v.level !== 'ERROR').map((v) => v.message)
+        }
+      }
+      const pv = res.preview
+      const warnings = res.validation.filter((v) => v.level === 'WARNING').map((v) => v.message)
+      const infos = res.validation.filter((v) => v.level === 'INFO').map((v) => v.message)
+      return {
+        ...item,
+        importId: res.importId,
+        status: warnings.length > 0 ? 'warning' : 'ok',
+        warnings: [...warnings, ...infos],
+        preview: pv
+          ? {
+              groupName: pv.groupName,
+              messageCount: pv.messageCount,
+              memberCount: pv.memberCount,
+              // 后端预览不区分画像数，以成员数近似；消息全文由确认导入后从会话详情加载
+              profileCount: pv.memberCount,
+              relationCount: pv.relationshipCount,
+              hasGoldenSummary: pv.goldenProvided
+            }
+          : undefined
+      }
+    } catch (e) {
+      return { ...item, status: 'failed', error: `预检查失败：${errorMessageOf(e)}` }
+    }
+  }
+
   const handleImportFiles = async (files: { name: string; path?: string; file?: File }[]) => {
     const items: ImportFileItem[] = files.map((f) => ({ id: `imp-${Date.now()}-${Math.random()}`, name: f.name, status: 'checking', warnings: [] }))
     setImportFiles((cur) => [...(cur ?? []), ...items])
     const parsed = await Promise.all(
       files.map((f, i) =>
-        parseImportFile(f.name, async () => {
-          if (f.file) return f.file.text()
-          if (f.path && window.desktopApi) return window.desktopApi.readTextFile(f.path)
-          throw new Error('无法读取文件')
-        }).then((item) => ({ ...item, id: items[i].id }))
+        backendOnline
+          ? validateImportFile(f, items[i].id)
+          : parseImportFile(f.name, async () => {
+              if (f.file) return f.file.text()
+              if (f.path && window.desktopApi) return window.desktopApi.readTextFile(f.path)
+              throw new Error('无法读取文件')
+            }).then((item) => ({ ...item, id: items[i].id }))
       )
     )
     // 模拟逐文件预检查节奏
@@ -388,7 +772,33 @@ export default function App() {
     }
   }
 
-  const handleConfirmImport = (files: ImportFileItem[]) => {
+  const handleConfirmImport = async (files: ImportFileItem[]) => {
+    if (backendOnline) {
+      const confirmedIds: string[] = []
+      for (const f of files) {
+        if (!f.importId) continue
+        try {
+          const res = await confirmImportApi(f.importId)
+          confirmedIds.push(res.sessionId)
+        } catch (e) {
+          // 批量导入：单文件失败不阻断其他文件（§4.1）
+          toast(`导入失败：${f.name}，${errorMessageOf(e)}`, 'error')
+        }
+      }
+      setImportFiles(null)
+      if (confirmedIds.length > 0) {
+        try {
+          const list = await listSessionsApi()
+          setSessions(list.map(mapSessionListItem))
+          // 批量导入完成后默认选中第一个成功项（§4.1）
+          setActiveSessionId(confirmedIds[0])
+        } catch (e) {
+          toast(`刷新会话列表失败：${errorMessageOf(e)}`, 'error')
+        }
+        toast(`成功导入 ${confirmedIds.length} 个会话`)
+      }
+      return
+    }
     const now = new Date().toLocaleString('zh-CN', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
     const newSessions: ConversationSession[] = files.map((f, i) => ({
       sessionId: `s-imp-${Date.now()}-${i}`,
@@ -541,22 +951,12 @@ export default function App() {
           defaultProfileId={defaultProfileId}
           bindings={bindings}
           onClose={() => setSettingsOpen(false)}
-          onSave={updateProfile}
-          onDelete={(id) =>
-            setModelSettings((cur) => ({
-              profiles: cur.profiles.filter((p) => p.profileId !== id),
-              defaultProfileId: cur.defaultProfileId === id ? null : cur.defaultProfileId
-            }))
-          }
-          onSetDefault={(id) => setModelSettings((cur) => ({ ...cur, defaultProfileId: id }))}
+          onSave={handleSaveProfile}
+          onDelete={handleDeleteProfile}
+          onSetDefault={handleSetDefaultProfile}
           onTest={handleTestConnection}
-          onToggleThinking={(id, enabled) => {
-            const p = profiles.find((x) => x.profileId === id)
-            if (p) updateProfile({ ...p, thinkingModeEnabled: enabled })
-          }}
-          onBindingChange={(agentKey, profileId) =>
-            setBindings((bs) => [...bs.filter((b) => b.agentKey !== agentKey), { agentKey, profileId }])
-          }
+          onToggleThinking={handleToggleThinking}
+          onBindingChange={handleBindingChange}
           onToast={toast}
         />
       )}

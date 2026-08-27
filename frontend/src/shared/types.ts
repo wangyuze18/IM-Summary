@@ -154,6 +154,8 @@ export interface ImportFileItem {
   warnings: string[]
   error?: string
   preview?: ImportPreview
+  /** 后端预检查返回的导入标识，确认导入时携带（仅后端导入流程） */
+  importId?: string
   /** 解析出的黄金摘要 Markdown（仅导入携带场景） */
   goldenMarkdown?: string
   messages?: ChatMessage[]

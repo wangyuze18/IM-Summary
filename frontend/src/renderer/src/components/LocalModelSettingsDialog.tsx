@@ -89,7 +89,8 @@ export default function LocalModelSettingsDialog(props: Props) {
       ...editing,
       profileId: editing.profileId ?? `p-${Date.now()}`,
       apiKeyMasked: editing.apiKey?.trim() ? maskKey(editing.apiKey.trim()) : editing.apiKeyMasked,
-      apiKey: undefined,
+      // 保留新填写的 API Key 供保存回调提交后端（仅请求使用，界面仍以掩码展示）；离线模式不读取该字段
+      apiKey: editing.apiKey?.trim() || undefined,
       // 配置变更后连接状态需重新测试
       connectionStatus: 'untested',
       thinkingModeSupported: editing.apiKey?.trim() ? null : editing.thinkingModeSupported
