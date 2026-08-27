@@ -79,9 +79,10 @@ function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: {
 }
 
 function OrgGraph({ members, relations, highlightUserId, full }: { members: UserProfile[]; relations: OrganizationRelation[]; highlightUserId: string | null; full?: boolean }) {
-  const target = members.find((m) => m.isTargetUser) ?? members[0]
+  const target = members.find((m) => m.isTargetUser) ?? members[0] ?? null
   // 简化模式：只画 targetUser 与最相关的 5 个成员（设计文档 §10.2）
   const shownMembers = useMemo(() => {
+    if (!target) return []
     if (full) return members
     const related = relations
       .filter((r) => r.fromUserId === target.userId || r.toUserId === target.userId)
@@ -89,6 +90,15 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
     const unique = [...new Set(related)].slice(0, 5)
     return members.filter((m) => m.userId === target.userId || unique.includes(m.userId))
   }, [members, relations, target, full])
+
+  // 在线模式组织图加载完成前 members 为空：占位展示，避免取 target 属性崩溃（V4.4）
+  if (!target) {
+    return (
+      <div className="org-empty" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: full ? 340 : 150, color: 'var(--text-3)', fontSize: 12 }}>
+        组织关系加载中…
+      </div>
+    )
+  }
 
   const shownIds = new Set(shownMembers.map((m) => m.userId))
   const shownRelations = relations.filter((r) => shownIds.has(r.fromUserId) && shownIds.has(r.toUserId))
@@ -112,13 +122,22 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
       {shownRelations.map((r, i) => {
         const a = pos.get(r.fromUserId)!
         const b = pos.get(r.toUserId)!
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
         return (
-          <line
-            key={i}
-            x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-            stroke="#c3ccd9" strokeWidth={r.line === 'solid' ? 1.6 : 1.1}
-            strokeDasharray={r.line === 'dashed' ? '4 4' : undefined}
-          />
+          <g key={i}>
+            {/* 关系边统一实线，线上标注关系名称（如“上下级”） */}
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#c3ccd9" strokeWidth={1.6} />
+            {r.label && (
+              <text
+                x={mid.x} y={mid.y - 3}
+                textAnchor="middle" fontSize={full ? 9 : 7}
+                fill="#7b8798" stroke="#fff" strokeWidth={3} paintOrder="stroke"
+              >
+                {r.label}
+              </text>
+            )}
+            <title>{r.scope ? `${r.label} · ${r.scope}` : r.label}</title>
+          </g>
         )
       })}
       {shownMembers.map((m) => {
@@ -180,7 +199,6 @@ export default function CompactContextSidebar({ groupName, members, relations, h
                   <MiniAvatar member={m} hl={highlightUserId === m.userId} />
                   <div className="who">
                     {m.name}
-                    {m.isTargetUser && <span className="target-tag">当前用户</span>}
                     <span style={{ color: 'var(--text-3)', marginLeft: 8, fontSize: 11.5 }}>
                       <span className="role-dot" style={{ background: ROLE_COLORS[m.roleCategory], display: 'inline-block', marginRight: 4 }} />
                       {m.role}
@@ -210,7 +228,7 @@ export default function CompactContextSidebar({ groupName, members, relations, h
                     {r}
                   </span>
                 ))}
-                <span className="role-count">— 实线：直接协作　┄ 虚线：弱关联</span>
+                <span className="role-count">— 实线：组织/协作关系（线上标注关系名称）</span>
               </div>
             </div>
           </div>

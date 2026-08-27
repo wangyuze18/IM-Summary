@@ -10,13 +10,17 @@ import type {
   EvaluationRecord,
   EvidenceLink,
   ModelProfile,
-  SummaryResult
+  OrganizationRelation,
+  RoleCategory,
+  SummaryResult,
+  UserProfile
 } from '../../../shared/types'
 import type {
   AgentStepView,
   BackendStepStatus,
   EvaluationRecordView,
   ModelProfileView,
+  OrganizationGraphView,
   RawImportMessage,
   RawImportUser,
   SessionListItemView,
@@ -119,6 +123,74 @@ export function mapSessionListItem(view: SessionListItemView): ConversationSessi
     status: view.hasSummary ? 'completed' : 'pending',
     hasGoldenSummary: view.goldenProvided
   }
+}
+
+/** 群聊时间范围：由消息首/末时间戳计算（V4.4），无有效时间戳时返回占位 */
+export function computeTimeRange(messages: RawImportMessage[]): string {
+  const times = messages
+    .map((m) => (typeof m.timestamp === 'string' ? new Date(m.timestamp).getTime() : Number.NaN))
+    .filter((t) => !Number.isNaN(t))
+  if (times.length === 0) return '—'
+  const fmt = (t: number) =>
+    new Date(t).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return `${fmt(Math.min(...times))} – ${fmt(Math.max(...times))}`
+}
+
+// ---------- 组织关系 ----------
+
+/** 岗位名称 → 角色大类（产品/研发/测试/其他），测试优先于研发判断（如“测试开发工程师”） */
+function inferRoleCategory(role: string): RoleCategory {
+  if (/产品|PM|需求/.test(role)) return '产品'
+  if (/测试|QA|质量/.test(role)) return '测试'
+  if (/研发|开发|工程师|架构|运维|算法|前端|后端|DBA|安全/.test(role)) return '研发'
+  return '其他'
+}
+
+/** 常见英文关系标识 → 中文（仅兜底；关系字段允许任意中文值，含中文时原样展示） */
+const RELATION_LABEL_ZH: Record<string, string> = {
+  reports_to: '汇报给',
+  manager_of: '上级',
+  same_team: '同组',
+  collaborates_with: '协作者',
+  depends_on: '依赖',
+  reviewer: '评审人',
+  approver: '审批人',
+  weak: '弱关联'
+}
+
+function relationLabelZh(label: string): string {
+  // 含中文字符：数据集可携带任意中文关系描述，直接展示不做映射
+  if (/[\u4e00-\u9fa5]/.test(label)) return label
+  return RELATION_LABEL_ZH[label.toLowerCase()] ?? label
+}
+
+/**
+ * 后端组织图 → 前端成员/关系视图（V4.4：群组信息与组织关系改用真实数据）。
+ * targetUserId 用于组织图居中，不作为「当前用户」展示（单用户 Demo）。
+ */
+export function mapOrganization(graph: OrganizationGraphView, targetUserId: string | null): {
+  members: UserProfile[]
+  relations: OrganizationRelation[]
+} {
+  const members: UserProfile[] = graph.nodes.map((n) => {
+    const role = n.positionName ?? n.positionCode ?? '成员'
+    return {
+      userId: n.userId,
+      name: n.displayName || n.userId,
+      role,
+      employeeId: n.employeeNo ?? '—',
+      roleCategory: inferRoleCategory(role),
+      isTargetUser: targetUserId != null && n.userId === targetUserId
+    }
+  })
+  const relations: OrganizationRelation[] = graph.edges.map((e) => ({
+    fromUserId: e.sourceUserId,
+    toUserId: e.targetUserId,
+    // 关系边统一实线展示，线上标注中文关系名称（如“上下级”）
+    label: relationLabelZh(e.label || e.relationType),
+    scope: e.scope || undefined
+  }))
+  return { members, relations }
 }
 
 /** 导入文件原始消息 → 前端消息视图（成员画像用于补全发送者信息） */

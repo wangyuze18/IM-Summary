@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * 模型配置接口：档案 CRUD、测试连接（支持未保存草稿）、Agent 绑定。
- * 所有响应中 API Key 仅以掩码出现。
+ * 除专用明文接口 /{profileId}/api-key（V5.4，Demo 级本地产品）外，所有响应中 API Key 仅以掩码出现。
  */
 @RestController
 @RequestMapping("/api/model-profiles")
@@ -44,6 +44,12 @@ public class ModelProfileController {
         return Map.of("deleted", true);
     }
 
+    /** API Key 明文获取（V5.4）：供前端回显编辑，每次保存重新提交 */
+    @GetMapping("/{profileId}/api-key")
+    public Map<String, Object> apiKey(@PathVariable String profileId) {
+        return profileService.revealApiKey(profileId);
+    }
+
     /**
      * 测试连接：
      * - 携带 profileId：测试已保存档案（可选携带新 apiKey）
@@ -57,6 +63,20 @@ public class ModelProfileController {
                 (String) body.get("baseUrl"),
                 (String) body.get("apiKey"),
                 (String) body.get("modelName"));
+    }
+
+    /**
+     * 获取模型列表（body 与 /test 一致）：
+     * - 携带 profileId：用已保存档案（可选携带新 apiKey）
+     * - 不携带 profileId：按草稿配置探测；仅 openai-compatible 支持
+     */
+    @PostMapping("/models")
+    public Map<String, Object> listModels(@RequestBody Map<String, Object> body) {
+        return Map.of("models", profileService.listModels(
+                (String) body.get("profileId"),
+                (String) body.get("providerType"),
+                (String) body.get("baseUrl"),
+                (String) body.get("apiKey")));
     }
 
     // ---------- Agent 绑定 ----------

@@ -1,7 +1,7 @@
 // LocalModelSettingsDialog —— 模型 API 设置抽屉（设计文档 §11）
 // 协议选择（OpenAI 兼容/Anthropic/自定义）+ Base URL + API Key（仅掩码）+ Model Name
 // 连接状态 / 思考模式状态 / 思考模式开关 / Agent 与模型绑定
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentKey, AgentModelBinding, ConnectionStatus, ModelProfile, ProviderType } from '../../../shared/types'
 import { AGENT_DEFS } from '../mockData'
 
@@ -16,6 +16,8 @@ interface Props {
   onTest: (profileId: string) => void
   onToggleThinking: (profileId: string, enabled: boolean) => void
   onBindingChange: (agentKey: AgentKey, profileId: string | undefined) => void
+  /** 获取模型列表（设计文档 §11.7）；离线模式不传入，此时仅保留手填 */
+  onFetchModels?: (req: { profileId?: string; providerType?: ProviderType; baseUrl?: string; apiKey?: string }) => Promise<string[]>
   onToast: (text: string) => void
 }
 
@@ -56,15 +58,25 @@ function ThinkingTag({ supported }: { supported: boolean | null }) {
 }
 
 export default function LocalModelSettingsDialog(props: Props) {
-  const { profiles, defaultProfileId, bindings, onClose, onSave, onDelete, onSetDefault, onTest, onToggleThinking, onBindingChange, onToast } = props
+  const { profiles, defaultProfileId, bindings, onClose, onSave, onDelete, onSetDefault, onTest, onToggleThinking, onBindingChange, onFetchModels, onToast } = props
   const [editing, setEditing] = useState<(Omit<ModelProfile, 'profileId'> & { profileId?: string }) | null>(null)
   const [formError, setFormError] = useState('')
+  // 模型列表获取状态（§11.7）：满足条件自动拉取，列表非空且未切回自定义时，Model Name 以下拉框呈现
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState('')
+  const [modelCustom, setModelCustom] = useState(false)
+  // 防抖与去重：同参数不重复请求；组件卸载后不再落盘状态
 
   const startEdit = (p?: ModelProfile) => {
     setFormError('')
+    setModelOptions([])
+    setModelsLoading(false)
+    setModelsError('')
+    setModelCustom(false)
     setEditing(
       p
-        ? { ...p, apiKey: '' }
+        ? { ...p, apiKey: p.apiKey ?? '' }
         : { ...EMPTY_FORM, displayName: `配置 ${profiles.length + 1}` }
     )
   }
@@ -89,7 +101,7 @@ export default function LocalModelSettingsDialog(props: Props) {
       ...editing,
       profileId: editing.profileId ?? `p-${Date.now()}`,
       apiKeyMasked: editing.apiKey?.trim() ? maskKey(editing.apiKey.trim()) : editing.apiKeyMasked,
-      // 保留新填写的 API Key 供保存回调提交后端（仅请求使用，界面仍以掩码展示）；离线模式不读取该字段
+      // 明文回显后每次保存均携带 API Key 提交后端（V4.4）
       apiKey: editing.apiKey?.trim() || undefined,
       // 配置变更后连接状态需重新测试
       connectionStatus: 'untested',
@@ -105,6 +117,75 @@ export default function LocalModelSettingsDialog(props: Props) {
     onToast('已复制配置，请重新测试连接')
   }
 
+  // 自动获取模型列表（§11.7）：仅 OpenAI 兼容协议 + Base URL 有效 + 有新 Key 或已存凭据时触发；
+  // 输入变化 600ms 防抖重取，同参数去重，避免刷屏请求与重复拉取
+  const baseUrlValid = !!editing && /^https?:\/\/.+/.test(editing.baseUrl.trim())
+  const autoFetchEnabled = !!onFetchModels
+    && !!editing
+    && editing.providerType === 'openai-compatible'
+    && baseUrlValid
+    && (!!editing.apiKey?.trim() || !!editing.profileId)
+  const autoFetchKey = !editing ? '' : [
+    editing.providerType,
+    editing.baseUrl.trim(),
+    editing.apiKey?.trim() ?? '',
+    editing.apiKey?.trim() ? '' : (editing.profileId ?? '')
+  ].join('|')
+  const lastFetchKeyRef = useRef('')
+
+  useEffect(() => {
+    if (!editing || !onFetchModels) return
+    if (!autoFetchEnabled) {
+      // 条件不再满足（如切换到 Anthropic 协议）：回到手填态，不保留旧列表误导选取
+      lastFetchKeyRef.current = ''
+      setModelOptions([])
+      setModelsError('')
+      setModelCustom(false)
+      return
+    }
+    if (autoFetchKey === lastFetchKeyRef.current) return
+    lastFetchKeyRef.current = autoFetchKey
+
+    let alive = true
+    const timer = window.setTimeout(async () => {
+      setModelsLoading(true)
+      setModelsError('')
+      try {
+        // 已保存档案且未填新 Key 时，后端使用已存凭据；否则按草稿探测
+        const req = editing.profileId && !editing.apiKey?.trim()
+          ? { profileId: editing.profileId }
+          : { providerType: editing.providerType, baseUrl: editing.baseUrl.trim(), apiKey: editing.apiKey?.trim() }
+        const models = await onFetchModels(req)
+        if (!alive) return
+        setModelsLoading(false)
+        if (models.length === 0) {
+          setModelOptions([])
+          setModelCustom(true)
+          setModelsError('未获取到任何模型，请手动填写 Model Name')
+        } else {
+          setModelOptions(models)
+          setModelCustom(false)
+          // 仅在尚未填写时默认选中第一个，不覆盖用户已选模型
+          if (!editing.modelName.trim()) {
+            setEditing({ ...editing, modelName: models[0] })
+          }
+        }
+      } catch (err) {
+        if (!alive) return
+        setModelsLoading(false)
+        // 本次拉取失败不视为已获取：下次条件变化时允许重试，当前回退手填
+        setModelOptions([])
+        setModelsError(`获取模型列表失败：${err instanceof Error ? err.message : '未知错误'}`)
+      }
+    }, 600)
+
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFetchKey, autoFetchEnabled, onFetchModels])
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
@@ -114,7 +195,7 @@ export default function LocalModelSettingsDialog(props: Props) {
         </div>
         <div className="drawer-body">
           <div className="settings-note" style={{ marginBottom: 12 }}>
-            模型凭据仅用于分析任务，保存后以掩码显示。
+            模型凭据仅用于分析任务；在线时明文回显可编辑，每次保存均发送给后端。
           </div>
 
           {profiles.map((p) => (
@@ -130,7 +211,7 @@ export default function LocalModelSettingsDialog(props: Props) {
                 {PROVIDER_LABEL[p.providerType]} · {p.modelName} · {p.baseUrl}
               </div>
               <div className="sub">
-                API Key：{p.apiKeyMasked ?? '（未设置）'} · 连接状态：{CONN_LABEL[p.connectionStatus]}
+                API Key：{p.apiKey ?? p.apiKeyMasked ?? '（未设置）'} · 连接状态：{CONN_LABEL[p.connectionStatus]}
                 {p.lastTestedAt ? ` · 最近测试 ${p.lastTestedAt}` : ''}
               </div>
               {p.lastError && <div className="error-text">{p.lastError}</div>}
@@ -166,7 +247,40 @@ export default function LocalModelSettingsDialog(props: Props) {
               </div>
               <div className="form-row">
                 <label>Model Name</label>
-                <input value={editing.modelName} placeholder="如 gpt-4o / claude-sonnet-4 / qwen-max" onChange={(e) => setEditing({ ...editing, modelName: e.target.value })} />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {modelOptions.length > 0 && !modelCustom ? (
+                    <select
+                      style={{ flex: 1 }}
+                      value={editing.modelName}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setModelCustom(true)
+                        } else {
+                          setEditing({ ...editing, modelName: e.target.value })
+                        }
+                      }}
+                    >
+                      {editing.modelName.trim() && !modelOptions.includes(editing.modelName) && (
+                        <option value={editing.modelName}>{editing.modelName}（当前值）</option>
+                      )}
+                      {modelOptions.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                      <option value="__custom__">自定义输入…</option>
+                    </select>
+                  ) : (
+                    <input
+                      style={{ flex: 1 }}
+                      value={editing.modelName}
+                      placeholder={modelsLoading ? '正在获取模型列表…' : '如 gpt-4o / claude-sonnet-4 / qwen-max'}
+                      onChange={(e) => setEditing({ ...editing, modelName: e.target.value })}
+                    />
+                  )}
+                </div>
+                {modelsLoading && modelOptions.length === 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>正在自动获取该服务支持的模型列表…</div>
+                )}
+                {modelsError && <div className="error-text" style={{ marginTop: 4 }}>{modelsError}</div>}
               </div>
               {formError && <div className="error-text" style={{ marginBottom: 8 }}>{formError}</div>}
               <div className="form-actions">

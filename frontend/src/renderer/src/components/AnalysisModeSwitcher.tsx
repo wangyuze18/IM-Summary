@@ -1,12 +1,16 @@
 // AnalysisModeSwitcher —— 分析模式切换器（设计文档 §5）
+// V4.4：模式标签不带状态点；最右侧仅展示时间：分析中实时计时，运行过显示上次耗时，未运行过隐藏；两模式时间相互独立
 import type { AnalysisMode } from '../../../shared/types'
 
 interface Props {
   mode: AnalysisMode
   disabled: boolean
-  elapsedSeconds?: number | null
+  /** 当前会话正在分析中 */
   running?: boolean
-  done?: boolean
+  /** 分析中的实时秒数 */
+  elapsedSeconds?: number | null
+  /** 当前模式上次运行耗时（秒）；从未运行时为 null，时间区整体隐藏 */
+  lastRunSeconds?: number | null
   onChange: (mode: AnalysisMode) => void
 }
 
@@ -22,7 +26,7 @@ function formatElapsed(sec: number): string {
   return `${h}:${m}:${s}`
 }
 
-export default function AnalysisModeSwitcher({ mode, disabled, elapsedSeconds, running, done, onChange }: Props) {
+export default function AnalysisModeSwitcher({ mode, disabled, running, elapsedSeconds, lastRunSeconds, onChange }: Props) {
   return (
     <div className="analysis-bar">
       <div className="mode-switcher" role="tablist" aria-label="分析模式">
@@ -41,11 +45,18 @@ export default function AnalysisModeSwitcher({ mode, disabled, elapsedSeconds, r
         ))}
       </div>
       <span className="spacer" />
-      <span className={`run-state ${running ? 'running' : done ? 'done' : 'idle'}`}>
-        <span className="status-dot" />
-        {running ? '分析中' : done ? '已完成' : '等待分析'}
-      </span>
-      {elapsedSeconds != null && <span className="total-elapsed">总耗时 {formatElapsed(elapsedSeconds)}</span>}
+      {/* 分析中：实时计时；否则仅当该模式运行过时展示上次耗时，未运行过不显示 */}
+      {running ? (
+        <span className="run-state running">
+          <span className="status-dot" />
+          分析中 · {formatElapsed(elapsedSeconds ?? 0)}
+        </span>
+      ) : lastRunSeconds != null ? (
+        <span className="run-state done">
+          <span className="status-dot" />
+          上次运行耗时 {formatElapsed(lastRunSeconds)}
+        </span>
+      ) : null}
     </div>
   )
 }

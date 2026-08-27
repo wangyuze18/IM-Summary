@@ -99,16 +99,16 @@ export const MOCK_MEMBERS: UserProfile[] = [
 ]
 
 export const MOCK_RELATIONS: OrganizationRelation[] = [
-  { fromUserId: 'u-lisi', toUserId: 'u-zhangsan', line: 'solid' },
-  { fromUserId: 'u-zhangsan', toUserId: 'u-wangwu', line: 'solid' },
-  { fromUserId: 'u-zhangsan', toUserId: 'u-zhaoliu', line: 'solid' },
-  { fromUserId: 'u-zhangsan', toUserId: 'u-chenba', line: 'dashed' },
-  { fromUserId: 'u-zhangsan', toUserId: 'u-sunqi', line: 'dashed' },
-  { fromUserId: 'u-zhoujiu', toUserId: 'u-zhangsan', line: 'solid' },
-  { fromUserId: 'u-lisi', toUserId: 'u-wangwu', line: 'solid' },
-  { fromUserId: 'u-lisi', toUserId: 'u-chenba', line: 'solid' },
-  { fromUserId: 'u-zhaoliu', toUserId: 'u-sunqi', line: 'solid' },
-  { fromUserId: 'u-wangwu', toUserId: 'u-chenba', line: 'dashed' }
+  { fromUserId: 'u-lisi', toUserId: 'u-zhangsan', label: '上下级' },
+  { fromUserId: 'u-zhangsan', toUserId: 'u-wangwu', label: '协作者' },
+  { fromUserId: 'u-zhangsan', toUserId: 'u-zhaoliu', label: '协作者' },
+  { fromUserId: 'u-zhangsan', toUserId: 'u-chenba', label: '跨组协作' },
+  { fromUserId: 'u-zhangsan', toUserId: 'u-sunqi', label: '跨组协作' },
+  { fromUserId: 'u-zhoujiu', toUserId: 'u-zhangsan', label: '上下级' },
+  { fromUserId: 'u-lisi', toUserId: 'u-wangwu', label: '协作者' },
+  { fromUserId: 'u-lisi', toUserId: 'u-chenba', label: '协作者' },
+  { fromUserId: 'u-zhaoliu', toUserId: 'u-sunqi', label: '同组' },
+  { fromUserId: 'u-wangwu', toUserId: 'u-chenba', label: '跨组协作' }
 ]
 
 export const MOCK_MESSAGES: ChatMessage[] = [

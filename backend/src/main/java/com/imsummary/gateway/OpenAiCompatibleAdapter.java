@@ -12,6 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +38,43 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
     protected String endpoint(String baseUrl) {
         String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return normalized.endsWith("/chat/completions") ? normalized : normalized + "/chat/completions";
+    }
+
+    protected String modelsEndpoint(String baseUrl) {
+        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        return normalized.endsWith("/models") ? normalized : normalized + "/models";
+    }
+
+    @Override
+    public List<String> listModels(String baseUrl, String apiKey) throws Exception {
+        JsonNode json = get(modelsEndpoint(baseUrl), apiKey);
+        List<String> models = new ArrayList<>();
+        for (JsonNode item : json.path("data")) {
+            String id = item.path("id").asText("");
+            if (!id.isBlank()) {
+                models.add(id);
+            }
+        }
+        models.sort(String.CASE_INSENSITIVE_ORDER);
+        return models;
+    }
+
+    protected JsonNode get(String url, String apiKey) throws Exception {
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .build();
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(Math.min(timeoutSeconds, 30)))
+                .header("Authorization", "Bearer " + apiKey)
+                .GET()
+                .build();
+        HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 401) {
+            throw new ModelCallException(response.statusCode(),
+                    "获取模型列表失败（HTTP " + response.statusCode() + "）：" + shortError(response.body()));
+        }
+        return mapper.readTree(response.body());
     }
 
     @Override

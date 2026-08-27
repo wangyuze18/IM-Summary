@@ -3,9 +3,13 @@
 
 import { httpJson, httpDownload } from './httpClient'
 import type {
+  ApiKeyView,
   EvaluationRecordView,
+  GoldenSummaryView,
   ImportConfirmResponse,
   ImportValidateResponse,
+  ListModelsRequest,
+  ListModelsResponse,
   ModelBindingsView,
   ModelProfileView,
   ModelTestDraftView,
@@ -35,6 +39,11 @@ export function getSessionDetail(sessionId: string): Promise<SessionDetailView> 
 
 export function getOrganization(sessionId: string): Promise<OrganizationGraphView> {
   return httpJson(`/api/sessions/${encodeURIComponent(sessionId)}/organization`)
+}
+
+/** 黄金摘要内容（V5.4）：未携带时 goldenProvided=false */
+export function getGoldenSummary(sessionId: string): Promise<GoldenSummaryView> {
+  return httpJson(`/api/sessions/${encodeURIComponent(sessionId)}/golden-summary`)
 }
 
 export function listSessionRuns(sessionId: string): Promise<RunListItemView[]> {
@@ -125,12 +134,25 @@ export function deleteModelProfile(profileId: string): Promise<{ deleted: boolea
   return httpJson(`/api/model-profiles/${encodeURIComponent(profileId)}`, { method: 'DELETE' })
 }
 
+/** API Key 明文获取（V5.4）：供设置界面回显编辑，每次保存重新提交后端 */
+export function getModelApiKey(profileId: string): Promise<ApiKeyView> {
+  return httpJson(`/api/model-profiles/${encodeURIComponent(profileId)}/api-key`)
+}
+
 /**
  * 测试连接：携带 profileId 返回完整脱敏档案视图；草稿测试仅返回检测结果。
  * 外部模型探测较慢，超时放宽。
  */
 export function testModelProfile(body: TestProfileRequest): Promise<ModelProfileView | ModelTestDraftView> {
   return httpJson('/api/model-profiles/test', { method: 'POST', json: body, timeoutMs: 30_000 })
+}
+
+/**
+ * 获取模型列表：携带 profileId 时用已保存档案（可省略 apiKey），否则按草稿探测。
+ * 仅 OpenAI 兼容协议支持，其他协议后端返回 MODEL_CALL_FAILED 错误体。
+ */
+export function listProfileModels(body: ListModelsRequest): Promise<ListModelsResponse> {
+  return httpJson('/api/model-profiles/models', { method: 'POST', json: body, timeoutMs: 30_000 })
 }
 
 export function getModelBindings(): Promise<ModelBindingsView> {

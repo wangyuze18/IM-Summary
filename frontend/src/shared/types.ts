@@ -41,8 +41,10 @@ export interface UserProfile {
 export interface OrganizationRelation {
   fromUserId: string
   toUserId: string
-  /** solid=实线（直接汇报/协作） dashed=虚线（弱关联） */
-  line: 'solid' | 'dashed'
+  /** 关系名称（如“上下级”），统一实线展示并标注在连线上 */
+  label: string
+  /** 关系作用域（可选），悬停展示 */
+  scope?: string
 }
 
 export type AgentKey =

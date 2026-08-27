@@ -102,11 +102,13 @@ public class SessionService {
         if (rels != null && rels.isArray()) {
             for (JsonNode r : rels) {
                 Map<String, Object> edge = new LinkedHashMap<>();
-                edge.put("sourceUserId", r.path("sourceUserId").asText(r.path("from").asText()));
-                edge.put("targetUserId", r.path("targetUserId").asText(r.path("to").asText()));
+                // 兼容两种键名：标准导入 sourceUserId/targetUserId、数据集格式 source/target
+                edge.put("sourceUserId", r.path("sourceUserId").asText(r.path("source").asText(r.path("from").asText())));
+                edge.put("targetUserId", r.path("targetUserId").asText(r.path("target").asText(r.path("to").asText())));
                 edge.put("relationType", r.path("relationType").asText(r.path("type").asText("")));
                 edge.put("direction", r.path("direction").asText("forward"));
                 edge.put("label", r.path("label").asText(r.path("relationType").asText("")));
+                edge.put("scope", r.path("scope").asText(""));
                 edges.add(edge);
             }
         }
@@ -114,6 +116,23 @@ public class SessionService {
         graph.put("nodes", nodes);
         graph.put("edges", edges);
         return graph;
+    }
+
+    /** 黄金摘要内容在线查看（V5.4）：未携带时 goldenProvided=false、content 为 null */
+    public Map<String, Object> getGoldenSummary(String sessionId) {
+        ConversationSessionEntity s = requireSession(sessionId);
+        Map<String, Object> view = new LinkedHashMap<>();
+        var golden = goldenSummaryRepository.findTopBySessionIdOrderByGoldenVersionDesc(sessionId);
+        if (s.isGoldenProvided() && golden.isPresent()) {
+            view.put("goldenProvided", true);
+            view.put("goldenVersion", golden.get().getGoldenVersion());
+            view.put("content", golden.get().getContent());
+        } else {
+            view.put("goldenProvided", false);
+            view.put("goldenVersion", null);
+            view.put("content", null);
+        }
+        return view;
     }
 
     /** 删除会话：事务内级联清理运行/步骤/摘要/评测/黄金摘要，避免孤儿记录 */

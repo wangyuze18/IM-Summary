@@ -70,7 +70,20 @@ export interface OrganizationGraphView {
     relationType: string
     direction: string
     label: string
+    scope: string
   }>
+}
+
+/** GET /api/sessions/{id}/golden-summary（V5.4）：未携带时 goldenProvided=false、content 为 null */
+export interface GoldenSummaryView {
+  goldenProvided: boolean
+  goldenVersion: number | null
+  content: string | null
+}
+
+/** GET /api/model-profiles/{id}/api-key（V5.4）：解密明文，供前端回显编辑 */
+export interface ApiKeyView {
+  apiKey: string | null
 }
 
 // ---------- 运行 ----------
@@ -251,6 +264,20 @@ export interface TestProfileRequest {
   baseUrl?: string
   apiKey?: string
   modelName?: string
+}
+
+/** POST /api/model-profiles/models 请求体（与 /test 一致） */
+export interface ListModelsRequest {
+  /** 携带则用已保存档案（可省略 apiKey），否则按草稿配置探测 */
+  profileId?: string
+  providerType?: ProviderType
+  baseUrl?: string
+  apiKey?: string
+}
+
+/** POST /api/model-profiles/models 返回；仅 openai-compatible 支持 */
+export interface ListModelsResponse {
+  models: string[]
 }
 
 /** GET /api/model-profiles/bindings */
