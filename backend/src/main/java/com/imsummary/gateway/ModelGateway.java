@@ -72,6 +72,15 @@ public class ModelGateway {
         return adapter.test(baseUrl, apiKey, modelName);
     }
 
+    /** 基于草稿配置获取模型列表（不落库）；协议不支持或调用失败时抛 ModelCallException */
+    public List<String> listModelsDraft(String providerType, String baseUrl, String apiKey) throws Exception {
+        ModelProviderAdapter adapter = adapters.get(providerType);
+        if (adapter == null) {
+            throw new ModelCallException("不支持的协议类型：" + providerType, null);
+        }
+        return adapter.listModels(baseUrl, apiKey);
+    }
+
     private ModelProviderAdapter adapterFor(ModelApiProfileEntity profile) {
         ModelProviderAdapter adapter = adapters.get(profile.getProviderType());
         if (adapter == null) {

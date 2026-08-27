@@ -1,5 +1,7 @@
 package com.imsummary.gateway;
 
+import java.util.List;
+
 /**
  * 模型协议适配器：将统一 ChatRequest 转换为具体供应商的 API 调用。
  */
@@ -14,4 +16,9 @@ public interface ModelProviderAdapter {
 
     /** 测试连接；实现应捕获异常并返回结构化结果 */
     GatewayModels.TestResult test(String baseUrl, String apiKey, String modelName);
+
+    /** 获取该服务支持的模型列表；不支持的协议抛 ModelCallException */
+    default List<String> listModels(String baseUrl, String apiKey) throws Exception {
+        throw new ModelCallException("该协议暂不支持自动获取模型列表，请手动填写 Model Name", null);
+    }
 }

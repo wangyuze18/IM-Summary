@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.imsummary.domain.ModelApiProfileEntity;
 import com.imsummary.domain.ModelSettingsEntity;
 import com.imsummary.gateway.GatewayModels;
+import com.imsummary.gateway.ModelCallException;
 import com.imsummary.gateway.ModelGateway;
 import com.imsummary.repository.ModelApiProfileRepository;
 import com.imsummary.repository.ModelSettingsRepository;
@@ -130,6 +131,41 @@ public class ModelProfileService {
             return credentialStore.decryptRef(entity.getApiKeySecretRef());
         } catch (Exception e) {
             throw new IllegalStateException("凭据已失效，请重新保存 API Key");
+        }
+    }
+
+    /**
+     * 获取模型列表（V5.2）：携带 profileId 时用已保存档案（未给 apiKey 则解密已存凭据），
+     * 否则按草稿 providerType + baseUrl + apiKey 探测。返回结构不含明文 Key。
+     */
+    public List<String> listModels(String profileId, String providerType, String baseUrl, String apiKey) {
+        String effectiveProviderType = providerType;
+        String effectiveBaseUrl = baseUrl;
+        String effectiveApiKey = apiKey;
+        if (profileId != null && !profileId.isBlank()) {
+            ModelApiProfileEntity entity = profileRepository.findById(profileId)
+                    .orElseThrow(() -> new NoSuchElementException("配置不存在：" + profileId));
+            effectiveProviderType = entity.getProviderType();
+            effectiveBaseUrl = entity.getBaseUrl();
+            if (effectiveApiKey == null || effectiveApiKey.isBlank()) {
+                effectiveApiKey = credentialSafeDecrypt(entity);
+            }
+        }
+        if (effectiveProviderType == null || effectiveProviderType.isBlank()) {
+            throw new IllegalArgumentException("缺少接口协议类型，无法获取模型列表");
+        }
+        if (effectiveBaseUrl == null || effectiveBaseUrl.isBlank()) {
+            throw new IllegalArgumentException("缺少 Base URL，无法获取模型列表");
+        }
+        if (effectiveApiKey == null || effectiveApiKey.isBlank()) {
+            throw new IllegalArgumentException("缺少 API Key，无法获取模型列表");
+        }
+        try {
+            return gateway.listModelsDraft(effectiveProviderType, effectiveBaseUrl, effectiveApiKey);
+        } catch (ModelCallException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ModelCallException("获取模型列表失败：" + e.getMessage(), e);
         }
     }
 

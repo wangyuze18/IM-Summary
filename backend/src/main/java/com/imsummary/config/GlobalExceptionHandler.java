@@ -1,5 +1,6 @@
 package com.imsummary.config;
 
+import com.imsummary.gateway.ModelCallException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,6 +38,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, Object>> tooLarge(MaxUploadSizeExceededException e) {
         return error(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "上传文件超出大小限制");
+    }
+
+    @ExceptionHandler(ModelCallException.class)
+    public ResponseEntity<Map<String, Object>> modelCallFailed(ModelCallException e) {
+        return error(HttpStatus.BAD_GATEWAY, "MODEL_CALL_FAILED", e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

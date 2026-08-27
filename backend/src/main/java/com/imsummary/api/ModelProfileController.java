@@ -59,6 +59,20 @@ public class ModelProfileController {
                 (String) body.get("modelName"));
     }
 
+    /**
+     * 获取模型列表（body 与 /test 一致）：
+     * - 携带 profileId：用已保存档案（可选携带新 apiKey）
+     * - 不携带 profileId：按草稿配置探测；仅 openai-compatible 支持
+     */
+    @PostMapping("/models")
+    public Map<String, Object> listModels(@RequestBody Map<String, Object> body) {
+        return Map.of("models", profileService.listModels(
+                (String) body.get("profileId"),
+                (String) body.get("providerType"),
+                (String) body.get("baseUrl"),
+                (String) body.get("apiKey")));
+    }
+
     // ---------- Agent 绑定 ----------
 
     @GetMapping("/bindings")
