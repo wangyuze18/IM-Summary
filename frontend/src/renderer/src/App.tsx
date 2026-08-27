@@ -81,6 +81,7 @@ const AGENT_PLAN: { key: AgentKey; start: number; duration: number }[] = [
   { key: 'user-context', start: 1200, duration: 1800 },
   { key: 'personalized-relevance', start: 3000, duration: 1300 },
   { key: 'summary', start: 4300, duration: 1800 },
+  { key: 'importance-extractor', start: 4300, duration: 1800 },
   { key: 'factual-auditor', start: 6100, duration: 1400 },
   { key: 'personalization-auditor', start: 6100, duration: 1600 }
 ]
@@ -409,9 +410,12 @@ export default function App() {
           goldenVersion: golden.goldenVersion,
           metrics: {
             accuracy: Math.min(0.99, base + jitter()),
-            recall: Math.min(0.99, base - 0.03 + jitter()),
             keyInformationOmissionRate: Math.max(0.01, (runMode === 'agent-workflow' ? 0.06 : 0.18) - jitter()),
-            rougeL: Math.min(0.95, base - 0.08 + jitter())
+            rougeL: Math.min(0.95, base - 0.08 + jitter()),
+            // 原型模拟综合质量评分（0-100）：与准确率基线线性相关并叠加抖动
+            llmScore: Math.min(99, Math.round(base * 100 - 4 + Math.random() * 8)),
+            importantMessagePrecision: Math.min(0.99, base - 0.02 + jitter()),
+            importantMessageRecall: Math.min(0.99, base - 0.05 + jitter())
           },
           evaluatedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
           outdated: false

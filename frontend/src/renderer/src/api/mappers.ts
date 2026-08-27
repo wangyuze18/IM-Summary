@@ -45,15 +45,18 @@ export function formatClock(iso: string | null | undefined): string {
 
 // ---------- Agent key / 状态枚举映射 ----------
 
-/** 后端下划线命名 → 前端连字符命名（single_model 无对应前端步骤，返回 null） */
+/** 后端下划线命名 → 前端连字符命名（single_model / evaluation_judge 仅参与模型绑定，不在工作流步骤面板展示） */
 const AGENT_KEY_FROM_BACKEND: Record<string, AgentKey> = {
   context_event: 'context-event',
   state: 'state',
   user_context: 'user-context',
   relevance: 'personalized-relevance',
   summary: 'summary',
+  importance_extractor: 'importance-extractor',
   factual_auditor: 'factual-auditor',
-  personalization_auditor: 'personalization-auditor'
+  personalization_auditor: 'personalization-auditor',
+  single_model: 'single-model',
+  evaluation_judge: 'evaluation-judge'
 }
 
 const AGENT_KEY_TO_BACKEND: Record<AgentKey, string> = {
@@ -62,8 +65,11 @@ const AGENT_KEY_TO_BACKEND: Record<AgentKey, string> = {
   'user-context': 'user_context',
   'personalized-relevance': 'relevance',
   summary: 'summary',
+  'importance-extractor': 'importance_extractor',
   'factual-auditor': 'factual_auditor',
-  'personalization-auditor': 'personalization_auditor'
+  'personalization-auditor': 'personalization_auditor',
+  'single-model': 'single_model',
+  'evaluation-judge': 'evaluation_judge'
 }
 
 export function agentKeyFromBackend(key: string): AgentKey | null {

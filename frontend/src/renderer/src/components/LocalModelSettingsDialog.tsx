@@ -318,7 +318,7 @@ export default function LocalModelSettingsDialog(props: Props) {
           )}
 
           {/* Agent 与模型绑定（§11.5）：默认收起，单个 Agent 可覆盖配置 */}
-          <div className="settings-section">工作流模型</div>
+          <div className="settings-section">团队工作流模型</div>
           <details className="binding-details">
             <summary>按阶段指定模型</summary>
             <div style={{ marginTop: 6 }}>
@@ -341,6 +341,31 @@ export default function LocalModelSettingsDialog(props: Props) {
               })}
             </div>
           </details>
+
+          {/* 单模型模式与评测判分模型：非工作流阶段，可单独指定模型档案 */}
+          {([
+            { key: 'single-model', title: '单模型模式模型', label: '单模型直接生成摘要' },
+            { key: 'evaluation-judge', title: '评测判分模型', label: '综合质量评分（LLM Score）判分' }
+          ] as const).map(({ key, title, label }) => {
+            const binding = bindings.find((b) => b.agentKey === key)
+            return (
+              <div key={key}>
+                <div className="settings-section">{title}</div>
+                <div className="binding-row">
+                  <span className="agent">{label}</span>
+                  <select
+                    value={binding?.profileId ?? ''}
+                    onChange={(e) => onBindingChange(key, e.target.value || undefined)}
+                  >
+                    <option value="">继承默认配置</option>
+                    {profiles.map((p) => (
+                      <option key={p.profileId} value={p.profileId}>{p.displayName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

@@ -53,8 +53,12 @@ export type AgentKey =
   | 'user-context'
   | 'personalized-relevance'
   | 'summary'
+  | 'importance-extractor'
   | 'factual-auditor'
   | 'personalization-auditor'
+  // 以下两键非工作流步骤，仅参与模型绑定：单模型模式与评测判分模型可在模型设置中单独指定
+  | 'single-model'
+  | 'evaluation-judge'
 
 export type AgentStatus = 'waiting' | 'running' | 'completed' | 'warning' | 'failed' | 'revising'
 
@@ -97,9 +101,13 @@ export interface GoldenSummary {
 
 export interface EvaluationMetrics {
   accuracy: number
-  recall: number
   keyInformationOmissionRate: number
   rougeL: number
+  /** 判分模型综合质量评分（0-100，越高越好）；旧评测记录可能缺失 */
+  llmScore?: number
+  importantMessagePrecision?: number | null
+  importantMessageRecall?: number | null
+  importantMessagesEvaluable?: boolean
 }
 
 export interface EvaluationRecord {

@@ -30,6 +30,7 @@ export const AGENT_DEFS: AgentDef[] = [
   { key: 'user-context', name: 'User Context Agent', short: '职位/职责/关系上下文', color: '#8f6fd8', light: '#b8a0ea', dark: '#6a4cb0', prop: 'book' },
   { key: 'personalized-relevance', name: 'Personalized Relevance Agent', short: '用户相关性与重要性', color: '#e8934a', light: '#f3ba84', dark: '#c06f2a', prop: 'star' },
   { key: 'summary', name: 'Summary Agent', short: '结构化摘要生成', color: '#4aa8e8', light: '#83c9f3', dark: '#2f7fbb', prop: 'pencil' },
+  { key: 'importance-extractor', name: 'Importance Agent', short: '按人员抽取原始重要消息', color: '#ef9f27', light: '#f7c66f', dark: '#b86f10', prop: 'star' },
   { key: 'factual-auditor', name: 'Factual Auditor', short: '事实/遗漏/状态审核', color: '#e86a92', light: '#f39bb8', dark: '#c04468', prop: 'shield' },
   { key: 'personalization-auditor', name: 'Personalization Auditor', short: '个性化合理性审核', color: '#42b8a6', light: '#79d4c4', dark: '#2a8a7b', prop: 'heart' }
 ]
@@ -140,7 +141,7 @@ const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### ❗ 决议事项
+### 决议事项
 * **决议1:** 新版本功能优先级确认
   * **背景/上下文:** 迭代容量有限，需聚焦核心价值
   * **状态:** 已确认，核心功能 A、B 优先进迭代
@@ -150,7 +151,7 @@ const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### 📋 待办事项
+### 待办事项
 
 | 优先级 | 任务内容 | 负责人 | 截止日期 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -161,7 +162,7 @@ const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### 💬 主要议题讨论
+### 主要议题讨论
 **议题 1: 新版本功能优先级**
 * **时间段:** 09:05 ~ 09:31
 * **主要参与者:** 张三、李四、王五
@@ -176,26 +177,18 @@ const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### ❓ 待解决问题与关键信息
+### 待解决问题与关键信息
 * **待解决问题:**
   1. 功能 C 依赖的数据口径尚未对齐，需另行拉会确认
   2. 消息历史迁移数据量存在超预期风险，可能顺延联调 1 天
 * **关键信息/文件:**
   1. 验收标准文档（张三下午发群）
-  2. 兼容性测试环境申请（IT 审批中，预计明天出结果）
-
----
-
-### 🎯 与你的相关重点
-* **【高】今天下午前需发布验收标准文档**
-  * **相关原因:** 你是产品负责人，测试用例准备依赖该文档
-* **【中】兼容性测试环境申请需跟进审批结果**
-  * **相关原因:** 孙七 @ 你确认进度，预计明天出结果`
+  2. 兼容性测试环境申请（IT 审批中，预计明天出结果）`
 
 const SINGLE_SUMMARY_MD = `# 工作群聊分析简报
 **群组名称:** 产品规划讨论群
 **报告周期:** 2025-06-12 09:00 ~ 11:32
-**分析模式:** 单模型基础模式
+**分析模式:** 单模型
 
 ---
 
@@ -206,13 +199,13 @@ const SINGLE_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### ❗ 决议事项
+### 决议事项
 * **决议1:** 功能优先级确认
   * **状态:** 核心功能 A、B 优先
 
 ---
 
-### 📋 待办事项
+### 待办事项
 
 | 优先级 | 任务内容 | 负责人 | 截止日期 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -222,7 +215,7 @@ const SINGLE_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### 💬 主要议题讨论
+### 主要议题讨论
 **议题 1: 功能优先级与排期**
 * **时间段:** 09:05 ~ 10:22
 * **主要参与者:** 张三、李四、王五、赵六
@@ -231,23 +224,19 @@ const SINGLE_SUMMARY_MD = `# 工作群聊分析简报
 
 ---
 
-### ❓ 待解决问题与关键信息
+### 待解决问题与关键信息
 * **待解决问题:**
   1. 功能 C 数据口径未对齐
 * **关键信息/文件:**
-  1. 验收标准文档待发布
-
----
-
-### 🎯 与你的相关重点
-* **【高】验收标准文档需今天发布**
-  * **相关原因:** 你是该任务负责人`
+  1. 验收标准文档待发布`
 
 export const MOCK_GOLDEN: GoldenSummary = {
   goldenVersion: 1,
-  markdown: `# 工作群聊分析简报（黄金摘要）
+  markdown: `# 工作群聊分析简报
 **群组名称:** 产品规划讨论群
 **报告周期:** 2025-06-12 09:00 ~ 11:32
+**分析模式:** 黄金摘要（人工参考）
+
 
 ---
 
@@ -258,7 +247,7 @@ export const MOCK_GOLDEN: GoldenSummary = {
 
 ---
 
-### 📋 待办事项
+### 待办事项
 
 | 优先级 | 任务内容 | 负责人 | 截止日期 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -294,7 +283,7 @@ export const MOCK_EVALUATION_HISTORY: EvaluationRecord[] = [
     mode: 'agent-workflow',
     summaryVersion: 1,
     goldenVersion: 1,
-    metrics: { accuracy: 0.92, recall: 0.88, keyInformationOmissionRate: 0.07, rougeL: 0.81 },
+    metrics: { accuracy: 0.92, keyInformationOmissionRate: 0.07, rougeL: 0.81, llmScore: 84, importantMessagePrecision: 0.89, importantMessageRecall: 0.86 },
     evaluatedAt: '2025-06-12 12:05',
     outdated: true
   },
@@ -303,7 +292,7 @@ export const MOCK_EVALUATION_HISTORY: EvaluationRecord[] = [
     mode: 'agent-workflow',
     summaryVersion: 2,
     goldenVersion: 1,
-    metrics: { accuracy: 0.95, recall: 0.91, keyInformationOmissionRate: 0.04, rougeL: 0.85 },
+    metrics: { accuracy: 0.95, keyInformationOmissionRate: 0.04, rougeL: 0.85, llmScore: 89, importantMessagePrecision: 0.93, importantMessageRecall: 0.9 },
     evaluatedAt: '2025-06-12 14:20',
     outdated: false
   },
@@ -312,7 +301,7 @@ export const MOCK_EVALUATION_HISTORY: EvaluationRecord[] = [
     mode: 'single-model',
     summaryVersion: 3,
     goldenVersion: 1,
-    metrics: { accuracy: 0.78, recall: 0.7, keyInformationOmissionRate: 0.18, rougeL: 0.66 },
+    metrics: { accuracy: 0.78, keyInformationOmissionRate: 0.18, rougeL: 0.66, llmScore: 68, importantMessagePrecision: 0.7, importantMessageRecall: 0.64 },
     evaluatedAt: '2025-06-12 14:35',
     outdated: false
   }

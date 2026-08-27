@@ -112,13 +112,14 @@ function MascotPropIcon({ prop, dark }: { prop: MascotProp; dark: string }) {
   }
 }
 
-/** Q 版 Agent 吉祥物：径向渐变团子身体 + 小短手 + 表情 + 道具（静态 SVG + CSS 小动画，§16） */
-const AGENT_ART: Record<AgentKey, string> = {
+/** Q 版 Agent 吉祥物：径向渐变团子身体 + 小短手 + 表情 + 道具（静态 SVG + CSS 小动画，§16）；仅覆盖工作流 7 键 */
+const AGENT_ART: Partial<Record<AgentKey, string>> = {
   'context-event': contextEventAgent,
   state: stateAgent,
   'user-context': userContextAgent,
   'personalized-relevance': relevanceAgent,
   summary: summaryAgent,
+  'importance-extractor': relevanceAgent,
   'factual-auditor': factualAuditorAgent,
   'personalization-auditor': personalizationAuditorAgent
 }
@@ -127,9 +128,10 @@ function Mascot({ def }: { def: AgentDef; status: AgentStatus }) {
   return <img className="mascot" src={AGENT_ART[def.key]} alt="" draggable={false} />
 }
 
-const AGENT_LABEL: Record<AgentKey, string> = {
+const AGENT_LABEL: Partial<Record<AgentKey, string>> = {
   'context-event': '事件识别', state: '状态判断', 'user-context': '用户上下文',
   'personalized-relevance': '相关性分析', summary: '摘要生成',
+  'importance-extractor': '重要消息',
   'factual-auditor': '事实审核', 'personalization-auditor': '个性化审核'
 }
 
@@ -145,7 +147,7 @@ function AgentNode({ step }: { step: AgentStepProgress }) {
       >
         <Mascot def={def} status={step.status} />
       </div>
-      <div className="agent-name">{AGENT_LABEL[step.agentKey]}</div>
+      <div className="agent-name">{AGENT_LABEL[step.agentKey] ?? step.agentKey}</div>
       <div className={`agent-live-status ${step.status}`}>
         <span className="status-dot" />
         <span>{STATUS_LABEL[step.status]}</span>
@@ -197,6 +199,8 @@ export default function AgentWorkflowPanel({ steps }: Props) {
         <Connector state={connAfter(['personalized-relevance'])} />
         <AgentNode step={get('summary')} />
         <Connector state={connAfter(['summary'])} />
+        <AgentNode step={get('importance-extractor')} />
+        <Connector state={connAfter(['importance-extractor'])} />
         <div className="parallel-group audit-group">
           <div className="parallel-row">
             <AgentNode step={get('factual-auditor')} />

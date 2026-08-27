@@ -16,7 +16,7 @@ interface Props {
 
 const MODES: { key: AnalysisMode; label: string; desc: string }[] = [
   { key: 'agent-workflow', label: '团队工作流', desc: '多阶段协同分析' },
-  { key: 'single-model', label: '基础模式', desc: '单模型直接生成' }
+  { key: 'single-model', label: '单模型', desc: '单模型直接生成' }
 ]
 
 function formatElapsed(sec: number): string {

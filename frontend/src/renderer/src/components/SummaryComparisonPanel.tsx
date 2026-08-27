@@ -19,7 +19,7 @@ interface Props {
 
 const MODE_LABEL: Record<AnalysisMode, string> = {
   'agent-workflow': '团队工作流',
-  'single-model': '基础模式'
+  'single-model': '单模型'
 }
 
 function FinalSummaryViewer(props: Props) {
