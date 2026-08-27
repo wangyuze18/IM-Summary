@@ -1,0 +1,590 @@
+{
+  "scenarioPlan": {
+    "evalSampleId": "E001",
+    "representativeFocus": "需求表述含歧义，经过澄清后确认范围",
+    "scenarioId": "SC-REQ-001",
+    "primaryBusinessScene": "需求讨论与变更",
+    "secondaryBusinessScene": "性能与资源问题",
+    "targetMessageCount": 25,
+    "timeSpan": "2026-08-17~2026-08-23",
+    "participantCount": 3,
+    "positionMix": [
+      "后端开发工程师"
+    ],
+    "targetUserId": "u1",
+    "topicPlan": [
+      {
+        "topicId": "T1",
+        "theme": "权限模型:范围蔓延"
+      }
+    ],
+    "eventPlan": [
+      {
+        "eventSeed": "讨论权限模型的范围蔓延",
+        "plannedType": "proposal",
+        "plannedLifecycle": "confirmed"
+      },
+      {
+        "eventSeed": "决定补充需求说明处理权限模型的范围蔓延",
+        "plannedType": "decision",
+        "plannedLifecycle": "confirmed"
+      },
+      {
+        "eventSeed": "钱伟负责补充需求说明（权限模型）",
+        "plannedType": "task",
+        "plannedLifecycle": "resolved"
+      },
+      {
+        "eventSeed": "补充需求说明进行中",
+        "plannedType": "status_update",
+        "plannedLifecycle": "active"
+      },
+      {
+        "eventSeed": "补充需求说明已完成",
+        "plannedType": "status_update",
+        "plannedLifecycle": "resolved"
+      }
+    ],
+    "noiseRatio": 0.12,
+    "styleMix": [
+      "正式"
+    ],
+    "technicalTextPlan": [
+      {
+        "type": "版本号",
+        "value": "见对话"
+      }
+    ],
+    "datasetMode": "synthetic",
+    "goldenSummaryProvided": true,
+    "difficultyTags": [
+      "simple-hierarchy",
+      "no-revision",
+      "low-noise",
+      "focus:需求表述含歧义，经过澄清"
+    ]
+  },
+  "group": {
+    "groupId": "G001",
+    "groupName": "需求讨论与变更协同群G001",
+    "groupType": "部门群",
+    "members": [
+      "u1",
+      "u2",
+      "u3"
+    ],
+    "targetPeriod": "2026-08-17~2026-08-23",
+    "targetUser": "u1",
+    "groupPurpose": "需求讨论与变更相关研发协同"
+  },
+  "users": [
+    {
+      "userId": "u1",
+      "employeeNo": "E1001",
+      "displayName": "尤涛",
+      "positionName": "后端开发工程师",
+      "responsibilities": [
+        "接口设计与实现"
+      ],
+      "rolePriors": [
+        "Java"
+      ]
+    },
+    {
+      "userId": "u2",
+      "employeeNo": "E1002",
+      "displayName": "钱伟",
+      "positionName": "后端开发工程师",
+      "responsibilities": [
+        "接口设计与实现",
+        "服务端稳定性"
+      ],
+      "rolePriors": [
+        "React"
+      ]
+    },
+    {
+      "userId": "u3",
+      "employeeNo": "E1003",
+      "displayName": "华婷",
+      "positionName": "算法工程师",
+      "responsibilities": [
+        "模型训练与调优"
+      ],
+      "rolePriors": [
+        "React"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "source": "u3",
+      "target": "u1",
+      "relationType": "上下级",
+      "scope": "需求讨论与变更"
+    }
+  ],
+  "messages": [
+    {
+      "messageId": "m1",
+      "sequenceNo": 1,
+      "timestamp": "2026-08-17T01:05:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "权限模型这边有范围蔓延，大家看下怎么处理",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m2",
+      "sequenceNo": 2,
+      "timestamp": "2026-08-17T01:10:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "权限模型的范围蔓延我这边也遇到了，先一起看看",
+      "mentions": [
+        "尤涛"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m3",
+      "sequenceNo": 3,
+      "timestamp": "2026-08-17T01:13:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "相关版本号是 v1.7.4，先记录一下",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m4",
+      "sequenceNo": 4,
+      "timestamp": "2026-08-17T01:14:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "那就按「补充需求说明」来处理权限模型，大家没意见吧？",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m5",
+      "sequenceNo": 5,
+      "timestamp": "2026-08-17T01:17:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "同意，我配合",
+      "mentions": [
+        "尤涛"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m6",
+      "sequenceNo": 6,
+      "timestamp": "2026-08-17T01:23:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "@钱伟 你负责落地「补充需求说明」，周五前搞定",
+      "mentions": [
+        "钱伟"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m7",
+      "sequenceNo": 7,
+      "timestamp": "2026-08-17T01:26:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "权限模型的补充需求说明已经进行中，进度正常",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m8",
+      "sequenceNo": 8,
+      "timestamp": "2026-08-17T01:31:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "权限模型的补充需求说明已完成",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m9",
+      "sequenceNo": 9,
+      "timestamp": "2026-08-17T01:34:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "明白了",
+      "mentions": [
+        "尤涛"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m10",
+      "sequenceNo": 10,
+      "timestamp": "2026-08-17T01:35:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "好的",
+      "mentions": [
+        "华婷"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m11",
+      "sequenceNo": 11,
+      "timestamp": "2026-08-17T01:37:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "这个我跟进",
+      "mentions": [
+        "尤涛"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m12",
+      "sequenceNo": 12,
+      "timestamp": "2026-08-17T01:38:00",
+      "senderUserId": "u3",
+      "senderDisplayName": "华婷",
+      "content": "+1",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m13",
+      "sequenceNo": 13,
+      "timestamp": "2026-08-17T01:40:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "收到",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m14",
+      "sequenceNo": 14,
+      "timestamp": "2026-08-17T01:46:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "好的",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m15",
+      "sequenceNo": 15,
+      "timestamp": "2026-08-17T01:51:00",
+      "senderUserId": "u3",
+      "senderDisplayName": "华婷",
+      "content": "我看一下",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m16",
+      "sequenceNo": 16,
+      "timestamp": "2026-08-17T01:57:00",
+      "senderUserId": "u3",
+      "senderDisplayName": "华婷",
+      "content": "辛苦",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m17",
+      "sequenceNo": 17,
+      "timestamp": "2026-08-17T02:01:00",
+      "senderUserId": "u3",
+      "senderDisplayName": "华婷",
+      "content": "明白了",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m18",
+      "sequenceNo": 18,
+      "timestamp": "2026-08-17T02:03:00",
+      "senderUserId": "u3",
+      "senderDisplayName": "华婷",
+      "content": "👍",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m19",
+      "sequenceNo": 19,
+      "timestamp": "2026-08-17T02:04:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "辛苦",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m20",
+      "sequenceNo": 20,
+      "timestamp": "2026-08-17T02:10:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "这个我跟进",
+      "mentions": [
+        "华婷"
+      ],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m21",
+      "sequenceNo": 21,
+      "timestamp": "2026-08-17T02:12:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "+1",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m22",
+      "sequenceNo": 22,
+      "timestamp": "2026-08-17T02:15:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "好的",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m23",
+      "sequenceNo": 23,
+      "timestamp": "2026-08-17T02:21:00",
+      "senderUserId": "u2",
+      "senderDisplayName": "钱伟",
+      "content": "好的",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m24",
+      "sequenceNo": 24,
+      "timestamp": "2026-08-17T02:26:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "已读",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    },
+    {
+      "messageId": "m25",
+      "sequenceNo": 25,
+      "timestamp": "2026-08-17T02:28:00",
+      "senderUserId": "u1",
+      "senderDisplayName": "尤涛",
+      "content": "收到",
+      "mentions": [],
+      "replyTo": null,
+      "messageType": "文本"
+    }
+  ],
+  "groundTruth": {
+    "eventLedger": [
+      {
+        "eventId": "E1",
+        "topicId": "T1",
+        "participants": [
+          "@尤涛",
+          "@钱伟"
+        ],
+        "owner": "未明确",
+        "dueDate": "未明确",
+        "evidenceMessageIds": [
+          "m1",
+          "m2"
+        ],
+        "relatedEventIds": [],
+        "supersedes": null,
+        "confidence": 0.7,
+        "eventType": "proposal",
+        "content": "讨论权限模型的范围蔓延",
+        "state": "confirmed"
+      },
+      {
+        "eventId": "E2",
+        "topicId": "T1",
+        "participants": [
+          "@尤涛",
+          "@钱伟"
+        ],
+        "owner": "@尤涛",
+        "dueDate": "未明确",
+        "evidenceMessageIds": [
+          "m4",
+          "m5"
+        ],
+        "relatedEventIds": [
+          "E1"
+        ],
+        "supersedes": null,
+        "confidence": 0.85,
+        "eventType": "decision",
+        "content": "决定补充需求说明处理权限模型的范围蔓延",
+        "state": "confirmed"
+      },
+      {
+        "eventId": "E3",
+        "topicId": "T1",
+        "participants": [
+          "@钱伟"
+        ],
+        "owner": "@钱伟",
+        "dueDate": "2026-08-19",
+        "evidenceMessageIds": [
+          "m6"
+        ],
+        "relatedEventIds": [
+          "E2"
+        ],
+        "supersedes": null,
+        "confidence": 0.9,
+        "eventType": "task",
+        "content": "钱伟负责补充需求说明（权限模型）",
+        "state": "resolved"
+      },
+      {
+        "eventId": "E4",
+        "topicId": "T1",
+        "participants": [
+          "@钱伟"
+        ],
+        "owner": "未明确",
+        "dueDate": "未明确",
+        "evidenceMessageIds": [
+          "m7"
+        ],
+        "relatedEventIds": [],
+        "supersedes": null,
+        "confidence": 0.8,
+        "eventType": "status_update",
+        "content": "补充需求说明进行中",
+        "state": "active"
+      },
+      {
+        "eventId": "E5",
+        "topicId": "T1",
+        "participants": [
+          "@钱伟"
+        ],
+        "owner": "未明确",
+        "dueDate": "未明确",
+        "evidenceMessageIds": [
+          "m8"
+        ],
+        "relatedEventIds": [
+          "E3"
+        ],
+        "supersedes": null,
+        "confidence": 0.9,
+        "eventType": "status_update",
+        "content": "补充需求说明已完成",
+        "state": "resolved"
+      }
+    ],
+    "goldenSummary": {
+      "groupName": "需求讨论与变更协同群G001",
+      "period": "2026-08-17~2026-08-23",
+      "abstractPoints": [
+        "讨论权限模型的范围蔓延",
+        "决定补充需求说明处理权限模型的范围蔓延",
+        "钱伟负责补充需求说明（权限模型）"
+      ],
+      "decisions": [
+        {
+          "title": "讨论权限模型的范围蔓延",
+          "context": "群内讨论达成",
+          "status": "已达成"
+        },
+        {
+          "title": "决定补充需求说明处理权限模型的范围蔓延",
+          "context": "群内讨论达成",
+          "status": "已达成"
+        }
+      ],
+      "todos": [
+        {
+          "priority": "低",
+          "task": "钱伟负责补充需求说明（权限模型）",
+          "owner": "@钱伟",
+          "dueDate": "2026-08-19",
+          "status": "已完成"
+        }
+      ],
+      "topics": [
+        {
+          "title": "权限模型:范围蔓延",
+          "timeRange": "2026-08-17~2026-08-23",
+          "participants": [
+            "@尤涛",
+            "@钱伟",
+            "@华婷"
+          ],
+          "process": "提出范围蔓延 -> 记录版本号 -> 决策:补充需求说明 -> 分配任务给钱伟 -> 状态:进行中",
+          "conclusion": "补充需求说明完成"
+        }
+      ],
+      "personalHighlights": [
+        {
+          "content": "尤涛（后端开发工程师）需主导需求讨论与变更相关落地",
+          "reason": "其为该群目标角色，职责含接口设计与实现",
+          "priority": "中"
+        }
+      ],
+      "openIssues": [],
+      "keyInfo": []
+    }
+  },
+  "qualityAudit": {
+    "pass": true,
+    "errors": [],
+    "warnings": [],
+    "coverage": {
+      "scenesCovered": 1,
+      "eventTypesCovered": 4,
+      "difficultyTags": [
+        "simple-hierarchy",
+        "no-revision",
+        "low-noise",
+        "focus:需求表述含歧义，经过澄清"
+      ]
+    },
+    "rewriteInstructions": []
+  }
+}
