@@ -4,18 +4,27 @@ import type { AnalysisMode } from '../../../shared/types'
 interface Props {
   mode: AnalysisMode
   disabled: boolean
+  elapsedSeconds?: number | null
+  running?: boolean
+  done?: boolean
   onChange: (mode: AnalysisMode) => void
 }
 
 const MODES: { key: AnalysisMode; label: string; desc: string }[] = [
-  { key: 'agent-workflow', label: 'Agent 团队模式', desc: '7 个 Agent 协同分析，质量优先' },
-  { key: 'single-model', label: '单模型基础模式', desc: '单一模型直接生成，作为基线对照' }
+  { key: 'agent-workflow', label: '团队工作流', desc: '多阶段协同分析' },
+  { key: 'single-model', label: '基础模式', desc: '单模型直接生成' }
 ]
 
-export default function AnalysisModeSwitcher({ mode, disabled, onChange }: Props) {
-  const current = MODES.find((m) => m.key === mode)!
+function formatElapsed(sec: number): string {
+  const h = String(Math.floor(sec / 3600)).padStart(2, '0')
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0')
+  const s = String(sec % 60).padStart(2, '0')
+  return `${h}:${m}:${s}`
+}
+
+export default function AnalysisModeSwitcher({ mode, disabled, elapsedSeconds, running, done, onChange }: Props) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
+    <div className="analysis-bar">
       <div className="mode-switcher" role="tablist" aria-label="分析模式">
         {MODES.map((m) => (
           <button
@@ -31,7 +40,12 @@ export default function AnalysisModeSwitcher({ mode, disabled, onChange }: Props
           </button>
         ))}
       </div>
-      <span className="mode-desc">{current.desc}（仅影响下次启动分析）</span>
+      <span className="spacer" />
+      <span className={`run-state ${running ? 'running' : done ? 'done' : 'idle'}`}>
+        <span className="status-dot" />
+        {running ? '分析中' : done ? '已完成' : '等待分析'}
+      </span>
+      {elapsedSeconds != null && <span className="total-elapsed">总耗时 {formatElapsed(elapsedSeconds)}</span>}
     </div>
   )
 }

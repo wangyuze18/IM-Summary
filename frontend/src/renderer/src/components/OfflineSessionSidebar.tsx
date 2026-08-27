@@ -61,23 +61,26 @@ export default function OfflineSessionSidebar(props: Props) {
   }
 
   return (
-    <aside className="session-sidebar">
+    <aside
+      className={`session-sidebar ${dragOver ? 'dragover' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+    >
       <div className="sidebar-section-title">
         离线会话
-        <span className="tip" title="支持 txt / json / csv 格式，可批量导入">ⓘ</span>
+        <span className="spacer" />
+        <button className="icon-only-btn" title="刷新会话列表" onClick={() => setKeyword('')}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+            <path d="M21 3v6h-6" />
+          </svg>
+        </button>
       </div>
       <div className="sidebar-pad">
-        <button className="btn primary import-btn" onClick={handleImportClick}>
-          ＋ 导入离线会话
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".txt,.json,.csv"
-          style={{ display: 'none' }}
-          onChange={handleInputChange}
-        />
         <div className="session-search">
           <span className="icon">⌕</span>
           <input placeholder="搜索会话名称" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
@@ -112,24 +115,20 @@ export default function OfflineSessionSidebar(props: Props) {
         )}
       </div>
 
-      <div
-        className={`drop-zone ${dragOver ? 'dragover' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
-        <div className="dz-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 16V5" />
-            <path d="M7.5 9.5 12 5l4.5 4.5" />
-            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-          </svg>
-        </div>
-        支持拖拽或点击导入
-        <div style={{ marginTop: 3, fontSize: 11 }}>支持 txt / json / csv 格式，可多选批量导入</div>
+      {/* 原型布局：导入入口固定在侧栏底部；拖拽导入作用于整个侧栏 */}
+      <div className="sidebar-footer">
+        <button className="btn primary import-btn" onClick={handleImportClick}>
+          ＋ 导入离线会话
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".txt,.json,.csv"
+          style={{ display: 'none' }}
+          onChange={handleInputChange}
+        />
+        <div className="import-hint">支持 txt / json / csv 格式，可拖拽批量导入</div>
       </div>
     </aside>
   )

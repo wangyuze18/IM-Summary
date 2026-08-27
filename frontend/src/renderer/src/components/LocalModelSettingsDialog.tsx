@@ -113,7 +113,7 @@ export default function LocalModelSettingsDialog(props: Props) {
         </div>
         <div className="drawer-body">
           <div className="settings-note" style={{ marginBottom: 12 }}>
-            配置面向当前桌面应用连接的 Web 后台；未配置有效模型时允许导入和查看，不允许启动分析。API Key 保存后仅掩码显示。
+            模型凭据仅用于分析任务，保存后以掩码显示。
           </div>
 
           {profiles.map((p) => (
@@ -203,9 +203,9 @@ export default function LocalModelSettingsDialog(props: Props) {
           )}
 
           {/* Agent 与模型绑定（§11.5）：默认收起，单个 Agent 可覆盖配置 */}
-          <div className="settings-section">Agent 与模型绑定</div>
+          <div className="settings-section">工作流模型</div>
           <details className="binding-details">
-            <summary>高级绑定（默认全部 Agent 继承默认配置，可按 Agent 覆盖）</summary>
+            <summary>按阶段指定模型</summary>
             <div style={{ marginTop: 6 }}>
               {AGENT_DEFS.map((def) => {
                 const binding = bindings.find((b) => b.agentKey === def.key)

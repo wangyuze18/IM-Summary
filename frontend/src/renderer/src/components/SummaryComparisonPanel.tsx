@@ -14,17 +14,16 @@ interface Props {
   golden: GoldenSummary | null
   generating: boolean
   generatingMode: AnalysisMode
-  onEvidenceClick: (messageId: string) => void
   onToast: (text: string) => void
 }
 
 const MODE_LABEL: Record<AnalysisMode, string> = {
-  'agent-workflow': 'Agent 团队模式',
-  'single-model': '单模型基础模式'
+  'agent-workflow': '团队工作流',
+  'single-model': '基础模式'
 }
 
 function FinalSummaryViewer(props: Props) {
-  const { groupName, summaries, activeVersion, onSelectVersion, generating, generatingMode, onEvidenceClick, onToast } = props
+  const { groupName, summaries, activeVersion, onSelectVersion, generating, generatingMode, onToast } = props
   const [exportOpen, setExportOpen] = useState(false)
   const current = summaries.find((s) => s.version === activeVersion) ?? summaries[summaries.length - 1]
 
@@ -53,7 +52,7 @@ function FinalSummaryViewer(props: Props) {
   return (
     <div className="summary-col">
       <div className="summary-head">
-        <b>AI 生成摘要</b>
+        <b>智能摘要</b>
         {current && (
           <>
             <span className={`mode-badge ${current.mode}`}>{MODE_LABEL[current.mode]}</span>
@@ -108,23 +107,9 @@ function FinalSummaryViewer(props: Props) {
           {generatingMode === 'agent-workflow' ? 'Agent 团队协同生成中…' : '单模型生成中…'}
         </div>
       ) : current ? (
-        <>
-          <div className="summary-body md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.markdown}</ReactMarkdown>
-          </div>
-          {current.evidenceLinks.length > 0 && (
-            <div className="evidence-chips">
-              <span style={{ fontSize: 11.5, color: 'var(--text-3)', alignSelf: 'center' }}>证据引用（点击定位原文）：</span>
-              {current.evidenceLinks.flatMap((link) =>
-                link.messageIds.map((mid) => (
-                  <button key={`${link.summaryPoint}-${mid}`} className="evidence-chip" title={link.summaryPoint} onClick={() => onEvidenceClick(mid)}>
-                    {link.summaryPoint} · {mid}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </>
+        <div className="summary-body md">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.markdown}</ReactMarkdown>
+        </div>
       ) : (
         <div className="summary-empty">
           <div className="big">📝</div>
@@ -155,7 +140,6 @@ export default function SummaryComparisonPanel(props: Props) {
     <section className="panel">
       <div className={`summary-grid ${golden ? '' : 'single'}`}>
         <FinalSummaryViewer {...props} />
-        {/* 导入文件未携带黄金摘要时不展示黄金摘要区（设计文档 §8.2） */}
         {golden && <GoldenSummaryViewer golden={golden} />}
       </div>
     </section>

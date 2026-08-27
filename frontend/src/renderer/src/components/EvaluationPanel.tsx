@@ -14,8 +14,8 @@ interface Props {
 type ModeFilter = 'all' | AnalysisMode
 
 const MODE_LABEL: Record<AnalysisMode, string> = {
-  'agent-workflow': 'Agent 团队',
-  'single-model': '单模型基础'
+  'agent-workflow': '团队工作流',
+  'single-model': '基础模式'
 }
 
 function pct(v: number): string {
@@ -24,10 +24,10 @@ function pct(v: number): string {
 
 function MetricsCards({ metrics }: { metrics: EvaluationMetrics }) {
   const cards = [
-    { v: pct(metrics.accuracy), n: 'Accuracy · 准确率', hint: '' },
-    { v: pct(metrics.recall), n: 'Recall · 召回率', hint: '' },
+    { v: pct(metrics.accuracy), n: '准确率', hint: '' },
+    { v: pct(metrics.recall), n: '召回率', hint: '' },
     { v: pct(metrics.keyInformationOmissionRate), n: '关键信息遗漏率', hint: '越低越好' },
-    { v: metrics.rougeL.toFixed(2), n: 'ROUGE-L', hint: '文本相似度' }
+    { v: metrics.rougeL.toFixed(2), n: '文本相似度', hint: '' }
   ]
   return (
     <div className="metrics-cards">
@@ -97,7 +97,6 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
       <div className="panel-header">
         <div className="panel-title">
           评测指标（基于黄金摘要）
-          <span className="tip" style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 12 }}>仅展示 4 类指标，无综合评价</span>
         </div>
         <button className="link-more" onClick={() => setCollapsed((v) => !v)}>
           {collapsed ? '展开评测历史 ▾' : '收起评测历史 ▴'}
@@ -118,10 +117,9 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
             <b style={{ fontSize: 12.5 }}>评测历史</b>
             <select className="version-select" value={filter} onChange={(e) => setFilter(e.target.value as ModeFilter)}>
               <option value="all">全部模式</option>
-              <option value="agent-workflow">Agent 团队</option>
-              <option value="single-model">单模型基础</option>
+              <option value="agent-workflow">团队工作流</option>
+              <option value="single-model">基础模式</option>
             </select>
-            <span style={{ color: 'var(--text-3)', fontSize: 11.5 }}>对比分析请导出后人工完成</span>
             <span className="spacer" />
             <button className="btn small" onClick={() => handleExport('csv')}>导出 CSV</button>
             <button className="btn small" onClick={() => handleExport('json')}>JSON</button>
@@ -135,10 +133,10 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
                   <th>模式</th>
                   <th>摘要版本</th>
                   <th>黄金版本</th>
-                  <th>Accuracy</th>
-                  <th>Recall</th>
+                  <th>准确率</th>
+                  <th>召回率</th>
                   <th>遗漏率</th>
-                  <th>ROUGE-L</th>
+                  <th>文本相似度</th>
                   <th>状态</th>
                 </tr>
               </thead>
@@ -178,10 +176,10 @@ export default function EvaluationPanel({ groupName, records, currentMetrics, on
               <div>摘要版本：v{detail.summaryVersion}　黄金版本：v{detail.goldenVersion}</div>
               <div>状态：{detail.outdated ? '已过期（黄金摘要已更新）' : '有效'}</div>
               <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-              <div>Accuracy 准确率：<b>{pct(detail.metrics.accuracy)}</b></div>
-              <div>Recall 召回率：<b>{pct(detail.metrics.recall)}</b></div>
+              <div>准确率：<b>{pct(detail.metrics.accuracy)}</b></div>
+              <div>召回率：<b>{pct(detail.metrics.recall)}</b></div>
               <div>关键信息遗漏率：<b>{pct(detail.metrics.keyInformationOmissionRate)}</b>（越低越好）</div>
-              <div>ROUGE-L：<b>{detail.metrics.rougeL.toFixed(2)}</b></div>
+              <div>文本相似度：<b>{detail.metrics.rougeL.toFixed(2)}</b></div>
             </div>
           </div>
         </div>

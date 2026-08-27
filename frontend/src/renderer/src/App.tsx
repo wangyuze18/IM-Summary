@@ -67,6 +67,9 @@ interface Toast {
 const waitingSteps = (): AgentStepProgress[] =>
   AGENT_PLAN.map((p) => ({ agentKey: p.key, status: 'waiting', warnings: [] }))
 
+const completedSteps = (): AgentStepProgress[] =>
+  AGENT_PLAN.map((p) => ({ agentKey: p.key, status: 'completed', warnings: [] }))
+
 function loadProfiles(): { profiles: ModelProfile[]; defaultProfileId: string | null } {
   try {
     const raw = localStorage.getItem('im-summary-model-settings')
@@ -453,33 +456,48 @@ export default function App() {
         />
 
         {activeSession ? (
-          <main className="main-workspace">
-            <AnalysisModeSwitcher mode={mode} disabled={analyzing} onChange={setMode} />
+          <div className="workspace-stage">
+            <div className="workspace-topbar">
+            <AnalysisModeSwitcher
+              mode={mode}
+              disabled={analyzing}
+              elapsedSeconds={runForView?.elapsed ?? null}
+              running={isRunningHere}
+              done={runForView?.done ?? summaries.length > 0}
+              onChange={setMode}
+            />
+            </div>
 
             {mode === 'agent-workflow' ? (
               <AgentWorkflowPanel
-                steps={runForView?.steps ?? waitingSteps()}
-                elapsedSeconds={runForView ? runForView.elapsed : null}
+                steps={runForView?.steps ?? (summaries.some((s) => s.mode === 'agent-workflow') ? completedSteps() : waitingSteps())}
                 running={isRunningHere}
               />
             ) : (
               <SingleModelProgressPanel
                 running={isRunningHere}
                 done={runForView?.done ?? summaries.length > 0}
-                elapsedSeconds={runForView ? runForView.elapsed : null}
-                progress={runForView?.progress ?? (summaries.length > 0 ? 100 : 0)}
               />
             )}
 
-            <RawConversationPanel
-              groupName={activeSession.groupName}
-              timeRange={activeSession.timeRange}
-              memberCount={activeSession.memberCount}
-              messages={messages}
-              members={MOCK_MEMBERS}
-              highlightMessageId={highlightMessageId}
-              onPersonClick={flashUser}
-            />
+            <div className="workspace-lower">
+              <main className="main-workspace">
+            <div className="conversation-module panel">
+              <RawConversationPanel
+                groupName={activeSession.groupName}
+                timeRange={activeSession.timeRange}
+                messages={messages}
+                members={MOCK_MEMBERS}
+                highlightMessageId={highlightMessageId}
+                onPersonClick={flashUser}
+              />
+              <CompactContextSidebar
+                groupName={activeSession.groupName}
+                members={MOCK_MEMBERS}
+                relations={MOCK_RELATIONS}
+                highlightUserId={highlightUserId}
+              />
+            </div>
 
             <SummaryComparisonPanel
               groupName={activeSession.groupName}
@@ -489,7 +507,6 @@ export default function App() {
               golden={golden}
               generating={isRunningHere}
               generatingMode={run?.mode ?? mode}
-              onEvidenceClick={flashMessage}
               onToast={toast}
             />
 
@@ -502,7 +519,10 @@ export default function App() {
                 onToast={toast}
               />
             )}
-          </main>
+
+              </main>
+            </div>
+          </div>
         ) : (
           <main className="main-workspace">
             <div className="panel workspace-empty">
@@ -513,14 +533,6 @@ export default function App() {
           </main>
         )}
 
-        {activeSession && (
-          <CompactContextSidebar
-            groupName={activeSession.groupName}
-            members={MOCK_MEMBERS}
-            relations={MOCK_RELATIONS}
-            highlightUserId={highlightUserId}
-          />
-        )}
       </div>
 
       {settingsOpen && (

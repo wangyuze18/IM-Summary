@@ -30,9 +30,9 @@ function MiniAvatar({ member, hl }: { member: UserProfile; hl?: boolean }) {
 }
 
 function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: { groupName: string; members: UserProfile[]; highlightUserId: string | null; onShowAll: () => void }) {
-  const roleCounts = useMemo(() => {
-    const map = new Map<RoleCategory, number>()
-    members.forEach((m) => map.set(m.roleCategory, (map.get(m.roleCategory) ?? 0) + 1))
+  const roleGroups = useMemo(() => {
+    const map = new Map<RoleCategory, UserProfile[]>()
+    members.forEach((m) => map.set(m.roleCategory, [...(map.get(m.roleCategory) ?? []), m]))
     return [...map.entries()]
   }, [members])
 
@@ -41,31 +41,36 @@ function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: {
       <div className="panel-header" style={{ padding: '10px 14px' }}>
         <div className="panel-title" style={{ fontSize: 13 }}>群组信息</div>
       </div>
-      <div style={{ padding: '10px 14px 14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <b>{groupName}</b>
-          <span style={{ color: 'var(--text-3)', fontSize: 12 }}>共 {members.length} 人</span>
+      <div className="context-card-body group-overview-body">
+        <div className="context-card-main group-overview-main">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <b>{groupName}</b>
+            <span style={{ color: 'var(--text-3)', fontSize: 12 }}>共 {members.length} 人</span>
+          </div>
+          <div className="avatar-stack">
+            {members.slice(0, 6).map((m) => (
+              <MiniAvatar key={m.userId} member={m} hl={highlightUserId === m.userId} />
+            ))}
+            {members.length > 6 && (
+              <span className="mini-avatar" style={{ background: '#eef1f6', color: 'var(--text-2)', border: '2px solid #fff', marginLeft: -7 }}>
+                +{members.length - 6}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 2 }}>成员构成</div>
+          <div className="role-groups">
+            {roleGroups.map(([role, list]) => (
+              <div className="role-group" key={role}>
+                <span className="role-dot" style={{ background: ROLE_COLORS[role] }} />
+                <span className="role-group-name">{role}：{list.length} 人</span>
+                <span className="role-group-members">
+                  {list.map((m) => m.name).join('、')}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="avatar-stack">
-          {members.slice(0, 6).map((m) => (
-            <MiniAvatar key={m.userId} member={m} hl={highlightUserId === m.userId} />
-          ))}
-          {members.length > 6 && (
-            <span className="mini-avatar" style={{ background: '#eef1f6', color: 'var(--text-2)', border: '2px solid #fff', marginLeft: -7 }}>
-              +{members.length - 6}
-            </span>
-          )}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 2 }}>关键成员（按角色）</div>
-        <div className="role-counts">
-          {roleCounts.map(([role, count]) => (
-            <span className="role-count" key={role}>
-              <span className="role-dot" style={{ background: ROLE_COLORS[role] }} />
-              {role}　{count} 人
-            </span>
-          ))}
-        </div>
-        <div style={{ marginTop: 10, textAlign: 'right' }}>
+        <div className="context-card-action">
           <button className="link-more" onClick={onShowAll}>查看全部成员</button>
         </div>
       </div>
@@ -150,12 +155,14 @@ export default function CompactContextSidebar({ groupName, members, relations, h
 
       <section className="panel">
         <div className="panel-header" style={{ padding: '10px 14px' }}>
-          <div className="panel-title" style={{ fontSize: 13 }}>组织关系（简述）</div>
+          <div className="panel-title" style={{ fontSize: 13 }}>组织关系</div>
         </div>
-        <div style={{ padding: '6px 8px 10px' }}>
-          <OrgGraph members={members} relations={relations} highlightUserId={highlightUserId} />
-          <div style={{ textAlign: 'center' }}>
-            <button className="link-more" onClick={() => setShowFullGraph(true)}>查看完整关系图 〉</button>
+        <div className="context-card-body org-card-body">
+          <div className="context-card-main org-card-main">
+            <OrgGraph members={members} relations={relations} highlightUserId={highlightUserId} />
+          </div>
+          <div className="context-card-action">
+            <button className="link-more" onClick={() => setShowFullGraph(true)}>查看完整关系图</button>
           </div>
         </div>
       </section>

@@ -1,12 +1,11 @@
 // RawConversationPanel —— 原始群聊区域（设计文档 §7）
 // 纯文本：仅展示文本消息、@提及、发送者和时间，不展示富媒体组件；支持 messageId 证据高亮定位
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ChatMessage, UserProfile } from '../../../shared/types'
 
 interface Props {
   groupName: string
   timeRange: string
-  memberCount: number
   messages: ChatMessage[]
   members: UserProfile[]
   highlightMessageId: string | null
@@ -22,9 +21,7 @@ export function avatarColor(userId: string): string {
 }
 
 export default function RawConversationPanel(props: Props) {
-  const { groupName, timeRange, memberCount, messages, members, highlightMessageId, onPersonClick } = props
-  const [expanded, setExpanded] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
+  const { groupName, timeRange, messages, members, highlightMessageId, onPersonClick } = props
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // 证据定位：滚动并高亮对应 messageId（设计文档 §12）
@@ -32,12 +29,9 @@ export default function RawConversationPanel(props: Props) {
     if (!highlightMessageId) return
     const el = msgRefs.current[highlightMessageId]
     if (el) {
-      setExpanded(true)
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
     }
   }, [highlightMessageId])
-
-  const visible = expanded ? messages : messages.slice(0, 8)
 
   const renderContent = (msg: ChatMessage) => {
     if (msg.mentions.length === 0) return msg.content
@@ -76,21 +70,12 @@ export default function RawConversationPanel(props: Props) {
           <div className="panel-title">原始群聊：{groupName}</div>
           <div className="chat-meta">
             <span>消息总数：{messages.length}</span>
-            <span>成员数：{memberCount}</span>
             <span>时间范围：{timeRange}</span>
           </div>
         </div>
-        <div className="chat-meta" style={{ flexShrink: 0 }}>
-          <span>共 {messages.length} 条</span>
-          {messages.length > 8 && (
-            <button className="link-more" onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '收起 ▴' : '展开全部 ⤢'}
-            </button>
-          )}
-        </div>
       </div>
-      <div className="chat-list" ref={listRef} style={expanded ? { maxHeight: 460 } : undefined}>
-        {visible.map((msg) => (
+      <div className="chat-list">
+        {messages.map((msg) => (
           <div
             key={msg.messageId}
             ref={(el) => {
@@ -98,7 +83,6 @@ export default function RawConversationPanel(props: Props) {
             }}
             className={`chat-msg ${highlightMessageId === msg.messageId ? 'highlight' : ''}`}
           >
-            <div className="chat-time">{msg.sentAt}</div>
             <div
               className="chat-avatar"
               style={{ background: avatarColor(msg.senderId) }}
@@ -114,6 +98,7 @@ export default function RawConversationPanel(props: Props) {
               <span className="chat-role">{msg.senderRole}</span>
             </div>
             <div className="chat-content">{renderContent(msg)}</div>
+            <div className="chat-time">{msg.sentAt}</div>
           </div>
         ))}
         {messages.length === 0 && <div style={{ color: 'var(--text-3)', padding: 20, textAlign: 'center' }}>暂无消息</div>}

@@ -1,13 +1,18 @@
 // AgentWorkflowPanel —— 7-Agent 工作流展示（设计文档 §6.1/§6.3/§6.4）
 // 结构：Context & Event → (State ∥ User Context) → Personalized Relevance → Summary → (Factual ∥ Personalization Auditor) → Final
-import { useState } from 'react'
 import type { AgentKey, AgentStatus, AgentStepProgress } from '../../../shared/types'
 import { AGENT_DEFS } from '../mockData'
 import type { AgentDef, MascotProp } from '../mockData'
+import contextEventAgent from '../assets/agent-context-event.png'
+import stateAgent from '../assets/agent-state.png'
+import userContextAgent from '../assets/agent-user-context.png'
+import relevanceAgent from '../assets/agent-relevance.png'
+import summaryAgent from '../assets/agent-summary.png'
+import factualAuditorAgent from '../assets/agent-factual-auditor.png'
+import personalizationAuditorAgent from '../assets/agent-personalization-auditor.png'
 
 interface Props {
   steps: AgentStepProgress[]
-  elapsedSeconds: number | null
   running: boolean
 }
 
@@ -108,58 +113,50 @@ function MascotPropIcon({ prop, dark }: { prop: MascotProp; dark: string }) {
 }
 
 /** Q 版 Agent 吉祥物：径向渐变团子身体 + 小短手 + 表情 + 道具（静态 SVG + CSS 小动画，§16） */
-function Mascot({ def, status }: { def: AgentDef; status: AgentStatus }) {
-  const gid = `mg-${def.key}`
-  return (
-    <svg className="mascot" width="64" height="64" viewBox="0 0 64 64">
-      <defs>
-        <radialGradient id={gid} cx="35%" cy="28%" r="80%">
-          <stop offset="0%" stopColor={def.light} />
-          <stop offset="55%" stopColor={def.color} />
-          <stop offset="100%" stopColor={def.dark} />
-        </radialGradient>
-      </defs>
-      <ellipse cx="6.8" cy="40" rx="4" ry="6" fill={def.dark} transform="rotate(18 6.8 40)" />
-      <ellipse cx="57.2" cy="40" rx="4" ry="6" fill={def.dark} transform="rotate(-18 57.2 40)" />
-      <path d="M32 5 C47 5 57 16.5 57 31.5 C57 47 46 59 32 59 C18 59 7 47 7 31.5 C7 16.5 17 5 32 5 Z" fill={`url(#${gid})`} />
-      <ellipse cx="21.5" cy="15" rx="9" ry="5" fill="#fff" opacity="0.32" transform="rotate(-22 21.5 15)" />
-      <MascotFace status={status} />
-      <MascotPropIcon prop={def.prop} dark={def.dark} />
-    </svg>
-  )
+const AGENT_ART: Record<AgentKey, string> = {
+  'context-event': contextEventAgent,
+  state: stateAgent,
+  'user-context': userContextAgent,
+  'personalized-relevance': relevanceAgent,
+  summary: summaryAgent,
+  'factual-auditor': factualAuditorAgent,
+  'personalization-auditor': personalizationAuditorAgent
 }
 
-function formatElapsed(sec: number): string {
-  const h = String(Math.floor(sec / 3600)).padStart(2, '0')
-  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0')
-  const s = String(sec % 60).padStart(2, '0')
-  return `${h}:${m}:${s}`
+function Mascot({ def }: { def: AgentDef; status: AgentStatus }) {
+  return <img className="mascot" src={AGENT_ART[def.key]} alt="" draggable={false} />
 }
 
-function AgentNode({ step, onClick, selected }: { step: AgentStepProgress; onClick: () => void; selected: boolean }) {
+const AGENT_LABEL: Record<AgentKey, string> = {
+  'context-event': '事件识别', state: '状态判断', 'user-context': '用户上下文',
+  'personalized-relevance': '相关性分析', summary: '摘要生成',
+  'factual-auditor': '事实审核', 'personalization-auditor': '个性化审核'
+}
+
+function AgentNode({ step }: { step: AgentStepProgress }) {
   const def = AGENT_DEFS.find((d) => d.key === step.agentKey)!
   return (
-    <div className={`agent-node ${step.status}`} onClick={onClick} title={`${def.name}：${def.short}`}>
-      <div className="agent-avatar" style={selected ? { boxShadow: '0 0 0 4px var(--yellow-bg)' } : undefined}>
+    <div className={`agent-node ${step.status}`} title={`${def.name}：${def.short}`}>
+      <div
+        className="agent-avatar"
+        style={{
+          background: `linear-gradient(145deg, ${def.light}1f, #f8faff 68%)`
+        }}
+      >
         <Mascot def={def} status={step.status} />
-        {step.status === 'completed' && <span className="agent-badge completed">✓</span>}
-        {step.status === 'failed' && <span className="agent-badge failed">✕</span>}
-        {step.status === 'warning' && <span className="agent-badge warning">!</span>}
-        {step.status === 'revising' && <span className="agent-badge revising">↻</span>}
       </div>
-      <div className="agent-name">{def.name.replace(' Agent', '')}</div>
-      <div className="agent-short">{def.short}</div>
+      <div className="agent-name">{AGENT_LABEL[step.agentKey]}</div>
+      <div className={`agent-live-status ${step.status}`}>
+        <span className="status-dot" />
+        <span>{STATUS_LABEL[step.status]}</span>
+      </div>
     </div>
   )
 }
 
 /** 连接线：已完成段中央带绿色对勾圆点（原型标准），进行中为流动渐变 */
 function Connector({ state }: { state: 'idle' | 'active' | 'done' }) {
-  return (
-    <div className={`flow-connector ${state}`}>
-      {state === 'done' && <span className="conn-check">✓</span>}
-    </div>
-  )
+  return <div className={`flow-connector ${state}`} />
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -171,9 +168,7 @@ const STATUS_LABEL: Record<string, string> = {
   revising: '修订中'
 }
 
-export default function AgentWorkflowPanel({ steps, elapsedSeconds, running }: Props) {
-  const [selectedKey, setSelectedKey] = useState<AgentKey | null>(null)
-
+export default function AgentWorkflowPanel({ steps }: Props) {
   const get = (key: AgentKey): AgentStepProgress =>
     steps.find((s) => s.agentKey === key) ?? { agentKey: key, status: 'waiting', warnings: [] }
 
@@ -184,63 +179,33 @@ export default function AgentWorkflowPanel({ steps, elapsedSeconds, running }: P
     return 'idle'
   }
 
-  const selected = selectedKey ? get(selectedKey) : null
-  const selectedDef = selectedKey ? AGENT_DEFS.find((d) => d.key === selectedKey)! : null
-  const allDone = steps.length > 0 && steps.every((s) => s.status === 'completed')
-
-  const toggle = (key: AgentKey) => setSelectedKey((cur) => (cur === key ? null : key))
-
   return (
     <section className="panel">
-      <div className="panel-header">
-        <div className="panel-title">
-          Agent 工作流
-          {running && <span className="status-tag analyzing">进行中</span>}
-          {allDone && !running && <span className="status-tag completed">已完成</span>}
-        </div>
-        {elapsedSeconds !== null && <span className="elapsed-time">⏱ 已进行：{formatElapsed(elapsedSeconds)}</span>}
-      </div>
-
       <div className="workflow-flow">
-        <AgentNode step={get('context-event')} selected={selectedKey === 'context-event'} onClick={() => toggle('context-event')} />
+        <AgentNode step={get('context-event')} />
         <Connector state={connAfter(['context-event'])} />
-        <div className="parallel-group">
-          <AgentNode step={get('state')} selected={selectedKey === 'state'} onClick={() => toggle('state')} />
-          <AgentNode step={get('user-context')} selected={selectedKey === 'user-context'} onClick={() => toggle('user-context')} />
-          <span className="parallel-caption green">上下文分析（并行）</span>
+        <div className="parallel-group context-group">
+          <div className="parallel-row">
+            <AgentNode step={get('state')} />
+            <Connector state={connAfter(['state'])} />
+            <AgentNode step={get('user-context')} />
+          </div>
+          <span className="parallel-caption">并行分析</span>
         </div>
         <Connector state={connAfter(['state', 'user-context'])} />
-        <AgentNode step={get('personalized-relevance')} selected={selectedKey === 'personalized-relevance'} onClick={() => toggle('personalized-relevance')} />
+        <AgentNode step={get('personalized-relevance')} />
         <Connector state={connAfter(['personalized-relevance'])} />
-        <AgentNode step={get('summary')} selected={selectedKey === 'summary'} onClick={() => toggle('summary')} />
+        <AgentNode step={get('summary')} />
         <Connector state={connAfter(['summary'])} />
-        <div className="parallel-group">
-          <AgentNode step={get('factual-auditor')} selected={selectedKey === 'factual-auditor'} onClick={() => toggle('factual-auditor')} />
-          <AgentNode step={get('personalization-auditor')} selected={selectedKey === 'personalization-auditor'} onClick={() => toggle('personalization-auditor')} />
-          <span className="parallel-caption blue">质量审核（并行）</span>
-        </div>
-        <Connector state={connAfter(['factual-auditor', 'personalization-auditor'])} />
-        <div className={`final-flag ${allDone ? 'done' : ''}`}>
-          <div className="flag">{allDone ? '🏁' : '◌'}</div>
-          <span>Final</span>
+        <div className="parallel-group audit-group">
+          <div className="parallel-row">
+            <AgentNode step={get('factual-auditor')} />
+            <Connector state={connAfter(['factual-auditor'])} />
+            <AgentNode step={get('personalization-auditor')} />
+          </div>
+          <span className="parallel-caption">并行审核</span>
         </div>
       </div>
-      <div className="workflow-caption">事实主线（Event Ledger）× 个性化主线（User Context）· 点击 Agent 查看阶段详情，不展示思维过程</div>
-
-      {selected && selectedDef && (
-        <div className="agent-detail-pop">
-          <div className="row"><span className="k">Agent</span><b>{selectedDef.name}</b></div>
-          <div className="row"><span className="k">阶段说明</span>{selectedDef.short}</div>
-          <div className="row"><span className="k">状态</span>{STATUS_LABEL[selected.status]}</div>
-          <div className="row"><span className="k">耗时</span>{selected.elapsedMs != null ? `${(selected.elapsedMs / 1000).toFixed(1)}s` : '—'}</div>
-          {selected.warnings.length > 0 && (
-            <div className="row"><span className="k">结构化告警</span><span style={{ color: 'var(--yellow)' }}>{selected.warnings.join('；')}</span></div>
-          )}
-          {selected.error && (
-            <div className="row"><span className="k">错误</span><span style={{ color: 'var(--red)' }}>{selected.error}</span></div>
-          )}
-        </div>
-      )}
     </section>
   )
 }
