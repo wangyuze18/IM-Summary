@@ -25,6 +25,7 @@ Thumbs.db
 dist/
 build/
 out/
+*.tsbuildinfo
 target/
 
 # Java / Spring Boot runtime

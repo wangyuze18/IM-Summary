@@ -1,0 +1,14 @@
+{
+  "groupName": "发布节奏对齐群",
+  "messages": [
+    { "messageId": "dm-01", "senderId": "u-zhangsan", "senderName": "张三", "senderRole": "产品经理", "sentAt": "14:02", "content": "下周一灰度发布，今天确认发布 checklist。", "mentions": [] },
+    { "messageId": "dm-02", "senderId": "u-wangwu", "senderName": "王五", "senderRole": "后端开发", "sentAt": "14:05", "content": "@张三 回滚方案已补充到发布文档，麻烦确认。", "mentions": ["u-zhangsan"] },
+    { "messageId": "dm-03", "senderId": "u-zhaoliu", "senderName": "赵六", "senderRole": "测试负责人", "sentAt": "14:11", "content": "回归测试今晚跑完，明早出报告。", "mentions": [] },
+    { "messageId": "dm-04", "senderId": "u-zhangsan", "senderName": "张三", "senderRole": "产品经理", "sentAt": "14:16", "content": "收到，回滚方案没问题。发布窗口定周一上午 10 点。", "mentions": [] },
+    { "messageId": "dm-05", "senderId": "u-lisi", "senderName": "李四", "senderRole": "研发负责人", "sentAt": "14:20", "content": "提醒：周一发布当天值班表还没排，今天下班前必须定。", "mentions": [] }
+  ],
+  "members": ["u-zhangsan", "u-wangwu", "u-zhaoliu", "u-lisi"],
+  "profiles": [],
+  "relations": [],
+  "goldenSummary": "# 工作群聊分析简报（黄金摘要）\n**群组名称:** 发布节奏对齐群\n\n---\n\n### 摘要\n* 下周一上午 10 点灰度发布，今天确认 checklist。\n* 回滚方案已确认，回归测试明早出报告。\n\n---\n\n### 📋 待办事项\n\n| 优先级 | 任务内容 | 负责人 | 截止日期 | 状态 |\n| :--- | :--- | :--- | :--- | :--- |\n| 高 | 确认发布 checklist | 张三 | 今天 | 进行中 |\n| 高 | 排定发布当天值班表 | 李四 | 今天下班前 | 未开始 |\n| 中 | 输出回归测试报告 | 赵六 | 明早 | 进行中 |"
+}

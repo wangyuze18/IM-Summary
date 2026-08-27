@@ -1,0 +1,160 @@
+// 前端数据视图契约 —— 对齐 docs/design/前端设计文档_V4_最终版.md 第 14 节
+// 字段命名与后端 WorkspaceView / EvaluationRecord / ModelApiSettingsView 保持一致
+
+export type AnalysisMode = 'agent-workflow' | 'single-model'
+
+export type SessionStatus = 'pending' | 'analyzing' | 'completed' | 'failed'
+
+export interface ConversationSession {
+  sessionId: string
+  groupName: string
+  importedAt: string
+  messageCount: number
+  memberCount: number
+  timeRange: string
+  status: SessionStatus
+  /** 黄金摘要仅来自导入文件携带，无手动补充入口 */
+  hasGoldenSummary: boolean
+}
+
+export interface ChatMessage {
+  messageId: string
+  senderId: string
+  senderName: string
+  senderRole: string
+  sentAt: string
+  content: string
+  mentions: string[]
+}
+
+export type RoleCategory = '产品' | '研发' | '测试' | '其他'
+
+export interface UserProfile {
+  userId: string
+  name: string
+  role: string
+  employeeId: string
+  roleCategory: RoleCategory
+  isTargetUser?: boolean
+}
+
+export interface OrganizationRelation {
+  fromUserId: string
+  toUserId: string
+  /** solid=实线（直接汇报/协作） dashed=虚线（弱关联） */
+  line: 'solid' | 'dashed'
+}
+
+export type AgentKey =
+  | 'context-event'
+  | 'state'
+  | 'user-context'
+  | 'personalized-relevance'
+  | 'summary'
+  | 'factual-auditor'
+  | 'personalization-auditor'
+
+export type AgentStatus = 'waiting' | 'running' | 'completed' | 'warning' | 'failed' | 'revising'
+
+export interface AgentStepProgress {
+  agentKey: AgentKey
+  status: AgentStatus
+  elapsedMs?: number
+  warnings: string[]
+  error?: string
+}
+
+export interface AgentRun {
+  runId: string
+  mode: AnalysisMode
+  startedAt: number
+  elapsedSeconds: number
+  /** 0-100，正式环境来自后端 overallProgress，前端不自行推算（此处为原型模拟） */
+  overallProgress: number
+}
+
+export interface EvidenceLink {
+  summaryPoint: string
+  messageIds: string[]
+}
+
+export interface SummaryResult {
+  summaryId: string
+  runId: string
+  mode: AnalysisMode
+  version: number
+  markdown: string
+  generatedAt: string
+  evidenceLinks: EvidenceLink[]
+}
+
+export interface GoldenSummary {
+  goldenVersion: number
+  markdown: string
+}
+
+export interface EvaluationMetrics {
+  accuracy: number
+  recall: number
+  keyInformationOmissionRate: number
+  rougeL: number
+}
+
+export interface EvaluationRecord {
+  evaluationId: string
+  mode: AnalysisMode
+  summaryVersion: number
+  goldenVersion: number
+  metrics: EvaluationMetrics
+  evaluatedAt: string
+  outdated: boolean
+}
+
+export type ProviderType = 'openai-compatible' | 'anthropic' | 'custom'
+
+export type ConnectionStatus = 'untested' | 'testing' | 'available' | 'failed'
+
+export interface ModelProfile {
+  profileId: string
+  displayName: string
+  providerType: ProviderType
+  baseUrl: string
+  /** 仅编辑草稿中存在，保存后清除，只保留 apiKeyMasked */
+  apiKey?: string
+  apiKeyMasked?: string
+  modelName: string
+  connectionStatus: ConnectionStatus
+  thinkingModeSupported: boolean | null
+  thinkingModeEnabled: boolean
+  lastTestedAt?: string
+  lastError?: string
+}
+
+export interface AgentModelBinding {
+  agentKey: AgentKey
+  /** 为空表示继承默认配置 */
+  profileId?: string
+}
+
+export interface ImportPreview {
+  groupName: string
+  messageCount: number
+  memberCount: number
+  profileCount: number
+  relationCount: number
+  hasGoldenSummary: boolean
+}
+
+export type ImportFileStatus = 'checking' | 'ok' | 'warning' | 'failed'
+
+export interface ImportFileItem {
+  id: string
+  name: string
+  status: ImportFileStatus
+  warnings: string[]
+  error?: string
+  preview?: ImportPreview
+  /** 解析出的黄金摘要 Markdown（仅导入携带场景） */
+  goldenMarkdown?: string
+  messages?: ChatMessage[]
+}
