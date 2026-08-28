@@ -399,6 +399,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .evidence-chip:hover { background: #d8e4fd; }
 
 /* 评测 EvaluationPanel */
+.evaluation-panel { position: relative; overflow: hidden; }
+.evaluation-progress { height: 34px; padding: 0 16px; display: flex; align-items: center; gap: 8px; position: relative; overflow: hidden; color: #526b8a; background: #f8fafd; font-size: 11.5px; }
+.evaluation-progress > i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; background: #e5ebf2; }
+.evaluation-progress > i::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24%; border-radius: 2px; background: #7196c5; animation: evaluationScan 1.6s ease-in-out infinite; }
+.evaluation-pulse { width: 7px; height: 7px; border-radius: 50%; background: #4b78b1; animation: statusPulse 1.2s ease-in-out infinite; }
+.evaluation-empty { padding: 14px 16px 4px; color: var(--text-3); font-size: 12.5px; }
+@keyframes evaluationScan { 0% { left: -24%; } 100% { left: 100%; } }
 .metrics-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 14px 16px 6px; }
 .metric-card { border: none; border-right: 1px solid var(--border); border-radius: 0; padding: 8px 12px; text-align: center; }
 .metric-card:last-child { border-right: 0; }
@@ -569,11 +576,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .baseline-paper-flow { padding-inline: 84px; gap: 64px; }
 }
 
-* { scrollbar-width: thin; scrollbar-color: rgba(68,88,116,.18) transparent; }
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { min-height: 32px; border: 1px solid transparent; border-radius: 999px; background: transparent; background-clip: padding-box; }
-*:hover::-webkit-scrollbar-thumb, *:focus-within::-webkit-scrollbar-thumb { background: rgba(73,94,123,.22); background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: rgba(58,80,109,.36) !important; background-clip: padding-box !important; }
-::-webkit-scrollbar-thumb:active { background: rgba(44,65,94,.5) !important; background-clip: padding-box !important; }
-::-webkit-scrollbar-corner { background: transparent; }
+/* 隐藏滚动条，滚轮、触控板、键盘与程序化滚动仍可使用。 */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .evaluation-pulse, .evaluation-progress > i::after { animation: none; }
+}

@@ -262,6 +262,8 @@ export interface SaveProfileRequest {
   modelName: string
   apiKey?: string
   enabled?: boolean
+  connectionStatus?: BackendConnectionStatus
+  thinkingModeSupported?: boolean | null
 }
 
 /** POST /api/model-profiles/test 请求体 */
@@ -286,6 +288,7 @@ export interface ListModelsRequest {
 /** POST /api/model-profiles/models 返回 */
 export interface ListModelsResponse {
   models: string[]
+  capabilities: Record<string, { thinkingModeSupported: boolean }>
 }
 
 /** GET /api/model-profiles/bindings */

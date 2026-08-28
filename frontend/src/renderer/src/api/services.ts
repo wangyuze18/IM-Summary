@@ -144,7 +144,7 @@ export function getModelApiKey(profileId: string): Promise<ApiKeyView> {
  * 外部模型探测较慢，超时放宽。
  */
 export function testModelProfile(body: TestProfileRequest): Promise<ModelProfileView | ModelTestDraftView> {
-  return httpJson('/api/model-profiles/test', { method: 'POST', json: body, timeoutMs: 120_000 })
+  return httpJson('/api/model-profiles/test', { method: 'POST', json: body, timeoutMs: 20_000 })
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentKey, AgentModelBinding, ConnectionStatus, ModelProfile, ProviderType } from '../../../shared/types'
+import type { ListModelsResponse } from '../api/wireTypes'
 import robotSprite from '../assets/acl-robot-agents-sprite.png'
 
 interface Props {
@@ -13,8 +14,7 @@ interface Props {
   onTest: (profileId: string) => void
   onToggleThinking: (profileId: string, enabled: boolean) => void
   onBindingChange: (agentKey: AgentKey, profileId: string | undefined) => void
-  onFetchModels?: (req: { profileId?: string; providerType?: ProviderType; baseUrl?: string; apiKey?: string }) => Promise<string[]>
-  onInspectModel?: (req: { providerType: ProviderType; baseUrl: string; apiKey: string; modelName: string }) => Promise<{ available: boolean; thinkingModeSupported: boolean; error?: string }>
+  onFetchModels?: (req: { profileId?: string; providerType?: ProviderType; baseUrl?: string; apiKey?: string }) => Promise<ListModelsResponse>
   onToast: (text: string) => void
 }
 type AssignmentView = 'baseline' | 'team' | 'evaluation'
@@ -90,35 +90,30 @@ function WorkAssignmentCard({ work, profiles, defaultProfileId, bindings, onChan
 }
 
 export default function LocalModelSettingsDialog(props: Props) {
-  const { profiles, defaultProfileId, bindings, onClose, onSave, onDelete, onSetDefault, onTest, onToggleThinking, onBindingChange, onFetchModels, onInspectModel, onToast } = props
+  const { profiles, defaultProfileId, bindings, onClose, onSave, onDelete, onSetDefault, onTest, onToggleThinking, onBindingChange, onFetchModels, onToast } = props
   const [editing, setEditing] = useState<EditingProfile | null>(null)
   const [assignmentView, setAssignmentView] = useState<AssignmentView>('baseline')
   const [formError, setFormError] = useState('')
   const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelCapabilities, setModelCapabilities] = useState<ListModelsResponse['capabilities']>({})
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState('')
-  const [thinkingChecking, setThinkingChecking] = useState(false)
-  const [thinkingError, setThinkingError] = useState('')
   const lastFetchKeyRef = useRef('')
-  const lastInspectKeyRef = useRef('')
 
   const startEdit = (profile?: ModelProfile) => {
     setFormError('')
     setModelOptions([])
+    setModelCapabilities({})
     setModelsError('')
-    setThinkingError('')
     lastFetchKeyRef.current = ''
-    lastInspectKeyRef.current = ''
     setEditing(profile ? { ...profile, apiKey: profile.apiKey ?? '' } : { ...EMPTY_FORM, displayName: `模型 ${profiles.length + 1}` })
   }
 
   const resetConnection = (patch: Partial<EditingProfile>) => {
     setModelOptions([])
+    setModelCapabilities({})
     setModelsError('')
-    setThinkingError('')
-    setThinkingChecking(false)
     lastFetchKeyRef.current = ''
-    lastInspectKeyRef.current = ''
     setEditing((current) => current ? {
       ...current, ...patch, modelName: '', connectionStatus: 'untested',
       thinkingModeSupported: null, thinkingModeEnabled: false
@@ -140,66 +135,36 @@ export default function LocalModelSettingsDialog(props: Props) {
         const request = editing.profileId && !editing.apiKey?.trim()
           ? { profileId: editing.profileId }
           : { providerType: editing.providerType, baseUrl: editing.baseUrl.trim(), apiKey: editing.apiKey?.trim() }
-        const models = await onFetchModels(request)
+        const catalog = await onFetchModels(request)
         if (!alive) return
+        const models = catalog.models
         setModelOptions(models)
+        setModelCapabilities(catalog.capabilities)
         setModelsError(models.length === 0 ? '没有找到可选模型，请检查服务地址和访问密钥' : '')
         setEditing((current) => {
           if (!current) return current
           const nextModel = models.includes(current.modelName) ? current.modelName : (models[0] ?? '')
-          return nextModel === current.modelName ? current : {
-            ...current, modelName: nextModel, connectionStatus: 'untested',
-            thinkingModeSupported: null, thinkingModeEnabled: false
+          const thinkingSupported = nextModel ? catalog.capabilities[nextModel]?.thinkingModeSupported ?? false : null
+          return {
+            ...current,
+            modelName: nextModel,
+            connectionStatus: nextModel ? 'available' : 'failed',
+            thinkingModeSupported: thinkingSupported,
+            thinkingModeEnabled: thinkingSupported ? current.thinkingModeEnabled : false
           }
         })
       } catch (error) {
         if (!alive) return
         setModelOptions([])
+        setModelCapabilities({})
         setEditing((current) => current ? { ...current, modelName: '', thinkingModeSupported: null, thinkingModeEnabled: false } : current)
         setModelsError(error instanceof Error ? error.message : '暂时无法读取模型列表')
       } finally {
         if (alive) setModelsLoading(false)
       }
-    }, 600)
+    }, 300)
     return () => { alive = false; window.clearTimeout(timer) }
   }, [autoFetchKey, editing, onFetchModels])
-
-  const inspectKey = editing && /^https?:\/\/.+/.test(editing.baseUrl.trim()) && editing.apiKey?.trim() && editing.modelName
-    ? [editing.providerType, editing.baseUrl.trim(), editing.apiKey.trim(), editing.modelName].join('|')
-    : ''
-
-  useEffect(() => {
-    if (!editing || !onInspectModel || !inspectKey || inspectKey === lastInspectKeyRef.current) return
-    lastInspectKeyRef.current = inspectKey
-    let alive = true
-    const timer = window.setTimeout(async () => {
-      setThinkingChecking(true)
-      setThinkingError('')
-      try {
-        const result = await onInspectModel({
-          providerType: editing.providerType,
-          baseUrl: editing.baseUrl.trim(),
-          apiKey: editing.apiKey!.trim(),
-          modelName: editing.modelName
-        })
-        if (!alive) return
-        setEditing((current) => current && current.modelName === editing.modelName ? {
-          ...current,
-          connectionStatus: result.available ? 'available' : 'failed',
-          thinkingModeSupported: result.thinkingModeSupported,
-          thinkingModeEnabled: result.thinkingModeSupported ? current.thinkingModeEnabled : false
-        } : current)
-        if (!result.available) setThinkingError(result.error ?? '当前模型暂时无法验证')
-      } catch (error) {
-        if (!alive) return
-        setThinkingError(error instanceof Error ? error.message : '当前模型暂时无法验证')
-        setEditing((current) => current ? { ...current, connectionStatus: 'failed', thinkingModeSupported: null, thinkingModeEnabled: false } : current)
-      } finally {
-        if (alive) setThinkingChecking(false)
-      }
-    }, 450)
-    return () => { alive = false; window.clearTimeout(timer) }
-  }, [editing, inspectKey, onInspectModel])
 
   const saveEditing = () => {
     if (!editing) return
@@ -258,20 +223,18 @@ export default function LocalModelSettingsDialog(props: Props) {
               <div className="form-row wide"><label>服务地址</label><input value={editing.baseUrl} placeholder="https://api.example.com/v1" onChange={(e) => resetConnection({ baseUrl: e.target.value })} /></div>
               <div className="form-row"><label>访问密钥</label><input type="password" value={editing.apiKey ?? ''} placeholder={editing.apiKeyMasked ?? '输入访问密钥'} onChange={(e) => resetConnection({ apiKey: e.target.value })} /></div>
               <div className="form-row"><label>模型</label><select value={editing.modelName} disabled={modelsLoading || modelOptions.length === 0} onChange={(e) => {
-                lastInspectKeyRef.current = ''
-                setThinkingError('')
-                setEditing({ ...editing, modelName: e.target.value, connectionStatus: 'untested', thinkingModeSupported: null, thinkingModeEnabled: false })
+                const thinkingSupported = modelCapabilities[e.target.value]?.thinkingModeSupported ?? false
+                setEditing({ ...editing, modelName: e.target.value, connectionStatus: e.target.value ? 'available' : 'untested', thinkingModeSupported: thinkingSupported, thinkingModeEnabled: thinkingSupported ? editing.thinkingModeEnabled : false })
               }}>
                 <option value="">{modelsLoading ? '正在获取可用模型…' : autoFetchKey ? '请选择模型' : '先填写服务地址和访问密钥'}</option>
                 {modelOptions.map((name) => <option key={name} value={name}>{name}</option>)}
               </select></div>
               <div className="model-thinking-row wide">
-                <div><b>思考模式</b><span>{thinkingChecking ? '正在识别模型能力…' : editing.thinkingModeSupported === true ? '此模型支持，可按需开启' : editing.thinkingModeSupported === false ? '此模型未检测到思考模式' : '选择模型后自动识别'}</span></div>
-                <button type="button" role="switch" aria-checked={editing.thinkingModeEnabled} aria-label="开启思考模式" disabled={editing.thinkingModeSupported !== true || thinkingChecking} className={`switch ${editing.thinkingModeEnabled ? 'on' : ''}`} onClick={() => setEditing({ ...editing, thinkingModeEnabled: !editing.thinkingModeEnabled })} />
+                <div><b>思考模式</b><span>{modelsLoading ? '正在读取模型能力…' : editing.thinkingModeSupported === true ? '此模型支持，可按需开启' : editing.thinkingModeSupported === false ? '此模型未检测到思考模式' : '选择模型后自动识别'}</span></div>
+                <button type="button" role="switch" aria-checked={editing.thinkingModeEnabled} aria-label="开启思考模式" disabled={editing.thinkingModeSupported !== true || modelsLoading} className={`switch ${editing.thinkingModeEnabled ? 'on' : ''}`} onClick={() => setEditing({ ...editing, thinkingModeEnabled: !editing.thinkingModeEnabled })} />
               </div>
             </div>
             {modelsError && <div className="error-text">{modelsError}</div>}
-            {thinkingError && <div className="error-text">{thinkingError}</div>}
             {formError && <div className="error-text">{formError}</div>}
             <div className="form-actions">
               <button className="btn primary small" onClick={saveEditing}>保存</button>

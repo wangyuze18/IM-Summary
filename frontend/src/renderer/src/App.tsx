@@ -105,6 +105,7 @@ export default function App() {
   const [activeVersionBySession, setActiveVersionBySession] = useState<Record<string, number>>({})
   const [goldenBySession, setGoldenBySession] = useState<Record<string, GoldenSummary | null>>({})
   const [evalBySession, setEvalBySession] = useState<Record<string, EvaluationRecord[]>>({})
+  const [evaluatingBySession, setEvaluatingBySession] = useState<Record<string, boolean>>({})
   const [membersBySession, setMembersBySession] = useState<Record<string, UserProfile[]>>({})
   const [relationsBySession, setRelationsBySession] = useState<Record<string, OrganizationRelation[]>>({})
 
@@ -344,14 +345,20 @@ export default function App() {
       await refreshSessionFromBackend(sessionId)
       toast('分析完成，摘要已更新')
       // 摘要先展示，耗时较长的 LLM 评测在后台继续，避免终态页面被评测阻塞。
+      setEvaluatingBySession((current) => ({ ...current, [sessionId]: true }))
       void startEvaluationApi(sessionId)
-        .then(async () => {
-          await refreshSessionFromBackend(sessionId)
+        .then((record) => {
+          const mapped = mapEvaluationRecord(record)
+          setEvalBySession((current) => ({
+            ...current,
+            [sessionId]: [mapped, ...(current[sessionId] ?? []).filter((item) => item.evaluationId !== mapped.evaluationId)]
+          }))
           toast('评测已更新')
         })
         .catch(() => {
           // 无黄金摘要或评测失败不影响摘要可用性。
         })
+        .finally(() => setEvaluatingBySession((current) => ({ ...current, [sessionId]: false })))
     },
     [refreshSessionFromBackend, toast]
   )
@@ -480,19 +487,7 @@ export default function App() {
   })
 
   // 获取模型列表（§11.7）：仅后端在线时可用；已保存档案未填新 Key 时后端使用已存凭据
-  const handleFetchModels = async (req: Parameters<typeof listProfileModels>[0]) => {
-    const res = await listProfileModels(req)
-    return res.models
-  }
-
-  const handleInspectModel = async (req: { providerType: ModelProfile['providerType']; baseUrl: string; apiKey: string; modelName: string }) => {
-    const result = await testModelProfile(req)
-    return {
-      available: result.connectionStatus === 'available',
-      thinkingModeSupported: result.thinkingModeSupported,
-      error: result.lastErrorMessage ?? undefined
-    }
-  }
+  const handleFetchModels = (req: Parameters<typeof listProfileModels>[0]) => listProfileModels(req)
 
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
@@ -505,7 +500,9 @@ export default function App() {
       providerType: p.providerType,
       baseUrl: p.baseUrl,
       modelName: p.modelName,
-      apiKey: p.apiKey
+      apiKey: p.apiKey,
+      connectionStatus: p.connectionStatus === 'available' ? 'available' : 'untested',
+      thinkingModeSupported: p.thinkingModeSupported
     })
       .then((view) => {
         // 保存成功后立即展示；真实模型的连接验证可能需要几十秒，在后台继续完成。
@@ -532,16 +529,6 @@ export default function App() {
             defaultProfileId: cur.defaultProfileId ?? view.profileId
           }
         })
-        void testModelProfile({ profileId: view.profileId })
-          .then((testedView) => {
-            if (!('profileId' in testedView)) return
-            updateProfile({
-              ...mapModelProfile(testedView),
-              thinkingModeEnabled: p.thinkingModeEnabled,
-              apiKey: p.apiKey
-            })
-          })
-          .catch((e) => toast(`模型已保存，连接验证稍后可重试：${errorMessageOf(e)}`, 'warn'))
       })
       .catch((e) => toast(`保存模型配置失败：${errorMessageOf(e)}`, 'error'))
   }
@@ -733,6 +720,7 @@ export default function App() {
   const activeVersion = activeSessionId ? activeVersionBySession[activeSessionId] ?? null : null
   const golden = activeSessionId ? goldenBySession[activeSessionId] ?? null : null
   const evalRecords = activeSessionId ? evalBySession[activeSessionId] ?? [] : []
+  const evaluating = activeSessionId ? evaluatingBySession[activeSessionId] === true : false
   const messages = activeSessionId ? importedMessages[activeSessionId] ?? [] : []
   const members = activeSessionId ? membersBySession[activeSessionId] ?? [] : []
   const relations = activeSessionId ? relationsBySession[activeSessionId] ?? [] : []
@@ -743,7 +731,7 @@ export default function App() {
     if (!golden || evalRecords.length === 0) return null
     const current = summaries.find((s) => s.version === activeVersion)
     const matched = evalRecords.find((r) => current && r.summaryVersion === current.version && r.mode === current.mode && !r.outdated)
-    return (matched ?? evalRecords.find((r) => !r.outdated) ?? evalRecords[0]).metrics
+    return matched?.metrics ?? null
   }, [golden, evalRecords, summaries, activeVersion])
 
   const runForView = isRunningHere || (run && run.sessionId === activeSessionId) ? run : null
@@ -842,6 +830,7 @@ export default function App() {
                 groupName={activeSession.groupName}
                 records={evalRecords}
                 currentMetrics={currentMetrics}
+                evaluating={evaluating}
                 onToast={toast}
               />
             )}
@@ -873,7 +862,6 @@ export default function App() {
           onToggleThinking={handleToggleThinking}
           onBindingChange={handleBindingChange}
           onFetchModels={backendOnline ? handleFetchModels : undefined}
-          onInspectModel={backendOnline ? handleInspectModel : undefined}
           onToast={toast}
         />
       )}
