@@ -10,7 +10,7 @@ export default function SingleModelProgressPanel({ running, done }: Props) {
   return (
     <section className="panel">
       <div className="single-progress">
-        {['基础摘要模型', '基础重要消息模型'].map((label) => <div key={label} className={`agent-node single-agent-node ${running ? 'running' : done ? 'completed' : 'waiting'}`}>
+        {['摘要生成', '重要消息'].map((label) => <div key={label} className={`agent-node single-agent-node ${running ? 'running' : done ? 'completed' : 'waiting'}`}>
           <div className="agent-avatar single-agent-avatar">
             <img className="mascot" src={defaultAgent} alt={label} draggable={false} />
           </div>
