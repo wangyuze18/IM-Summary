@@ -1,6 +1,7 @@
 // OfflineSessionSidebar —— 左侧离线会话栏：导入（NativeFileImportButton + FileDropZone）、搜索、会话列表（设计文档 §4）
 import { useRef, useState } from 'react'
 import type { ConversationSession, SessionStatus } from '../../../shared/types'
+import PaperDialog from './PaperDialog'
 
 interface Props {
   sessions: ConversationSession[]
@@ -32,6 +33,7 @@ export default function OfflineSessionSidebar(props: Props) {
   const { sessions, activeSessionId, onSelect, onImportFiles, onDelete } = props
   const [keyword, setKeyword] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<ConversationSession | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filtered = sessions.filter((s) => s.groupName.toLowerCase().includes(keyword.trim().toLowerCase()))
@@ -62,7 +64,7 @@ export default function OfflineSessionSidebar(props: Props) {
     if (list.length > 0) onImportFiles(list)
   }
 
-  return (
+  return <>
     <aside
       className={`session-sidebar ${dragOver ? 'dragover' : ''}`}
       onDragOver={(e) => {
@@ -113,9 +115,7 @@ export default function OfflineSessionSidebar(props: Props) {
                 title="删除会话"
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (window.confirm(`确定删除会话“${s.groupName}”？\n其摘要与评测记录将一并删除，且不可恢复。`)) {
-                    onDelete(s.sessionId)
-                  }
+                  setPendingDelete(s)
                 }}
               >
                 ✕
@@ -148,5 +148,23 @@ export default function OfflineSessionSidebar(props: Props) {
         <div className="import-hint">支持 txt / json / csv 格式，可拖拽批量导入</div>
       </div>
     </aside>
-  )
+    {pendingDelete && <PaperDialog
+      title="删除会话"
+      subtitle={pendingDelete.groupName}
+      size="sm"
+      tone="danger"
+      onClose={() => setPendingDelete(null)}
+      footer={<>
+        <button className="btn" onClick={() => setPendingDelete(null)}>取消</button>
+        <button className="btn danger-solid" onClick={() => {
+          onDelete?.(pendingDelete.sessionId)
+          setPendingDelete(null)
+        }}>确认删除</button>
+      </>}
+    >
+      <div className="paper-dialog-callout danger-callout">
+        该会话的摘要、运行记录和评测历史将一并删除，此操作无法撤销。
+      </div>
+    </PaperDialog>}
+  </>
 }

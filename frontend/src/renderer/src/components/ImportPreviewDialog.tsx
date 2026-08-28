@@ -2,6 +2,7 @@
 // 批量导入：逐文件状态列表（校验结果/警告摘要），失败文件标红、可单独移除，不阻断其他文件
 import { useState } from 'react'
 import type { ImportFileItem, ImportFileStatus } from '../../../shared/types'
+import PaperDialog from './PaperDialog'
 
 interface Props {
   files: ImportFileItem[]
@@ -30,16 +31,21 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
   const importable = files.filter((f) => f.status === 'ok' || f.status === 'warning')
   const stillChecking = files.some((f) => f.status === 'checking')
 
-  return (
-    <div className="overlay center">
-      <div className="modal" style={{ width: 720 }} onClick={(e) => e.stopPropagation()}>
-        <div className="drawer-header">
-          导入离线会话（{files.length} 个文件）
-          <button className="drawer-close" onClick={onCancel}>✕</button>
-        </div>
-        <div className="panel-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, overflowY: 'auto' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 12.5, marginBottom: 8 }}>文件校验状态</div>
+  return <PaperDialog
+    title="导入离线会话"
+    subtitle={`${files.length} 个文件等待确认`}
+    size="lg"
+    onClose={onCancel}
+    bodyClassName="import-dialog-body"
+    footer={<>
+      <button className="btn" onClick={onCancel}>取消</button>
+      <button className="btn primary" disabled={importable.length === 0 || stillChecking} onClick={() => onConfirm(importable)}>
+        确认导入（{importable.length}）
+      </button>
+    </>}
+  >
+          <section className="import-dialog-column">
+            <div className="paper-section-label">文件校验状态</div>
             {files.map((f) => (
               <div
                 key={f.id}
@@ -49,8 +55,9 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
                 <span className="fname" title={f.name}>{f.name}</span>
                 <span className={`status-tag ${STATUS_TAG_CLASS[f.status]}`}>{STATUS_LABEL[f.status]}</span>
                 <button
-                  className="drawer-close"
+                  className="import-remove-file"
                   title="移除该文件"
+                  aria-label={`移除${f.name}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     onRemove(f.id)
@@ -63,10 +70,10 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
             <div style={{ color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.6, marginTop: 6 }}>
               单个文件失败不阻断其他文件；导入失败不创建会话，警告在确认前集中提示。
             </div>
-          </div>
+          </section>
 
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 12.5, marginBottom: 8 }}>预览</div>
+          <section className="import-dialog-column preview-column">
+            <div className="paper-section-label">内容预览</div>
             {selected?.preview ? (
               <>
                 <div className="import-preview-grid">
@@ -103,15 +110,6 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
                 {selected?.status === 'checking' ? '正在校验…' : '选择左侧文件查看预览'}
               </div>
             )}
-          </div>
-        </div>
-        <div className="panel-body" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--border)' }}>
-          <button className="btn" onClick={onCancel}>取消</button>
-          <button className="btn primary" disabled={importable.length === 0 || stillChecking} onClick={() => onConfirm(importable)}>
-            确认导入（{importable.length} 个文件）
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+          </section>
+  </PaperDialog>
 }

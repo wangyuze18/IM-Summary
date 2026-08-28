@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import type { OrganizationRelation, RoleCategory, UserProfile } from '../../../shared/types'
 import { avatarColor } from './RawConversationPanel'
+import PaperDialog from './PaperDialog'
 
 interface Props {
   groupName: string
@@ -195,13 +196,7 @@ export default function CompactContextSidebar({ groupName, members, relations, h
       </section>
 
       {showAllMembers && (
-        <div className="overlay" onClick={() => setShowAllMembers(false)}>
-          <div className="drawer" style={{ width: 380 }} onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header">
-              全部成员（{members.length}）
-              <button className="drawer-close" onClick={() => setShowAllMembers(false)}>✕</button>
-            </div>
-            <div className="drawer-body">
+        <PaperDialog title="全部成员" subtitle={`${members.length} 人 · 按导入档案展示`} size="sm" side onClose={() => setShowAllMembers(false)} bodyClassName="member-dialog-body">
               {members.map((m) => (
                 <div className="member-row" key={m.userId}>
                   <MiniAvatar member={m} hl={highlightUserId === m.userId} />
@@ -215,21 +210,13 @@ export default function CompactContextSidebar({ groupName, members, relations, h
                   <span className="emp">工号 {m.employeeId}</span>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
+        </PaperDialog>
       )}
 
       {showFullGraph && (
-        <div className="overlay center" onClick={() => setShowFullGraph(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header">
-              完整组织关系图
-              <button className="drawer-close" onClick={() => setShowFullGraph(false)}>✕</button>
-            </div>
-            <div className="panel-body" style={{ overflowY: 'auto' }}>
+        <PaperDialog title="完整组织关系图" subtitle="成员关系与角色分布" size="lg" onClose={() => setShowFullGraph(false)} bodyClassName="organization-dialog-body">
               <OrgGraph members={members} relations={relations} highlightUserId={highlightUserId} full />
-              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: 12, color: 'var(--text-2)' }}>
+              <div className="organization-legend">
                 {(Object.keys(ROLE_COLORS) as RoleCategory[]).map((r) => (
                   <span key={r} className="role-count">
                     <span className="role-dot" style={{ background: ROLE_COLORS[r] }} />
@@ -238,9 +225,7 @@ export default function CompactContextSidebar({ groupName, members, relations, h
                 ))}
                 <span className="role-count">— 实线：组织/协作关系（线上标注关系名称）</span>
               </div>
-            </div>
-          </div>
-        </div>
+        </PaperDialog>
       )}
     </aside>
   )

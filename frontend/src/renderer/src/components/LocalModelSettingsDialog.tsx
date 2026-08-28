@@ -191,9 +191,9 @@ export default function LocalModelSettingsDialog(props: Props) {
 
   const assignmentProps = { profiles, defaultProfileId, bindings, onChange: onBindingChange }
 
-  return <div className="overlay" onClick={onClose}>
-    <div className="drawer model-settings-drawer" onClick={(event) => event.stopPropagation()}>
-      <div className="drawer-header">模型设置<button className="drawer-close" onClick={onClose}>✕</button></div>
+  return <div className="overlay paper-overlay" onClick={onClose}>
+    <div className="drawer paper-drawer model-settings-drawer" role="dialog" aria-modal="true" aria-label="模型设置" onClick={(event) => event.stopPropagation()}>
+      <div className="paper-dialog-header"><span className="paper-dialog-mark" aria-hidden="true"><i /><i /><i /></span><div className="paper-dialog-heading"><b>模型设置</b><span>连接模型并分配给不同工作</span></div><button className="paper-dialog-close" aria-label="关闭模型设置" onClick={onClose}>×</button></div>
       <div className="drawer-body model-settings-body">
         <section className="model-settings-section">
           <div className="model-settings-heading">

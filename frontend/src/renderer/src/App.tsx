@@ -735,7 +735,7 @@ export default function App() {
   }, [golden, evalRecords, summaries, activeVersion])
 
   const handleEvaluateCurrent = () => {
-    if (!activeSessionId || evaluating) return
+    if (!activeSessionId || !golden || evaluating) return
     const current = summaries.find((summary) => summary.version === activeVersion)
     if (!current) return
     setEvaluatingBySession((state) => ({ ...state, [activeSessionId]: true }))
@@ -842,17 +842,15 @@ export default function App() {
               onToast={toast}
             />
 
-            {/* 未携带黄金摘要时评测区整体隐藏（§8.2/§9.1） */}
-            {golden && (
-              <EvaluationPanel
-                groupName={activeSession.groupName}
-                records={evalRecords}
-                currentMetrics={currentMetrics}
-                evaluating={evaluating}
-                onEvaluate={handleEvaluateCurrent}
-                onToast={toast}
-              />
-            )}
+            <EvaluationPanel
+              groupName={activeSession.groupName}
+              records={evalRecords}
+              currentMetrics={currentMetrics}
+              evaluating={evaluating}
+              evaluable={golden !== null}
+              onEvaluate={handleEvaluateCurrent}
+              onToast={toast}
+            />
 
               </main>
             </div>

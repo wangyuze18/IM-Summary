@@ -1,5 +1,5 @@
 // SummaryComparisonPanel —— AI 最终摘要（FinalSummaryViewer）+ 黄金摘要（GoldenSummaryViewer）（设计文档 §8）
-// 黄金摘要仅来自导入携带；未携带时黄金摘要区与评测区整体隐藏
+// 黄金摘要仅来自导入携带；未携带时只隐藏黄金对照，评测区仍保留占位说明
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -127,21 +127,13 @@ function FinalSummaryViewer(props: Props) {
         {current && (
           <>
             <button className="icon-btn" onClick={handleCopy}>复制</button>
-            <span style={{ position: 'relative' }}>
+            <span className="summary-export-anchor">
               <button className="icon-btn" onClick={() => setExportOpen((v) => !v)}>导出 ▾</button>
               {exportOpen && (
-                <div
-                  style={{
-                    position: 'absolute', right: 0, top: '110%', background: '#fff', border: '1px solid var(--border)',
-                    borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.1)', zIndex: 20, minWidth: 130, overflow: 'hidden'
-                  }}
-                >
-                  <button className="icon-btn" style={{ display: 'block', width: '100%', border: 'none', textAlign: 'left', padding: '8px 12px' }} onClick={() => handleExport('markdown')}>
-                    Markdown（推荐）
-                  </button>
-                  <button className="icon-btn" style={{ display: 'block', width: '100%', border: 'none', textAlign: 'left', padding: '8px 12px' }} onClick={() => handleExport('json')}>
-                    JSON
-                  </button>
+                <div className="paper-popover" role="menu" aria-label="导出格式">
+                  <div className="paper-popover-title">导出格式</div>
+                  <button role="menuitem" onClick={() => handleExport('markdown')}><b>Markdown</b><span>适合阅读与分享</span></button>
+                  <button role="menuitem" onClick={() => handleExport('json')}><b>JSON</b><span>保留结构化字段</span></button>
                 </div>
               )}
             </span>

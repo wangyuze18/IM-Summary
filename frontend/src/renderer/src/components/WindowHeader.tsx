@@ -1,5 +1,6 @@
 // WindowHeader —— 顶部全局区域：平台名称 + 模型设置入口 + 开始/重新分析（设计文档 §3）
 import { useState } from 'react'
+import PaperDialog from './PaperDialog'
 
 interface Props {
   hasSummary: boolean
@@ -62,29 +63,20 @@ export default function WindowHeader(props: Props) {
       </div>
 
       {confirming && (
-        <div className="overlay center" onClick={() => setConfirming(false)}>
-          <div className="modal" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header">
-              重新分析确认
-              <button className="drawer-close" onClick={() => setConfirming(false)}>✕</button>
-            </div>
-            <div className="panel-body" style={{ lineHeight: 1.8 }}>
-              重新分析将创建一个<b>新的 Run</b>并产生新版本摘要，已有摘要与评测历史会保留。是否继续？
-            </div>
-            <div className="panel-body" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 0 }}>
-              <button className="btn" onClick={() => setConfirming(false)}>取消</button>
-              <button
-                className="btn primary"
-                onClick={() => {
-                  setConfirming(false)
-                  onStartAnalysis()
-                }}
-              >
-                确认，开始新 Run
-              </button>
-            </div>
+        <PaperDialog
+          title="重新分析"
+          subtitle="将当前会话生成一个新版本"
+          size="sm"
+          onClose={() => setConfirming(false)}
+          footer={<>
+            <button className="btn" onClick={() => setConfirming(false)}>取消</button>
+            <button className="btn primary" onClick={() => { setConfirming(false); onStartAnalysis() }}>开始新分析</button>
+          </>}
+        >
+          <div className="paper-dialog-callout">
+            已有摘要和评测历史会继续保留，新结果将作为下一个版本加入当前会话。
           </div>
-        </div>
+        </PaperDialog>
       )}
     </header>
   )
