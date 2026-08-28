@@ -19,7 +19,7 @@ public class AgentStepRunEntity {
 
     private String runId;
 
-    /** context_event | state | user_context | relevance | summary | factual_auditor | personalization_auditor | single_model */
+    /** context_event | state | summary | importance_extractor | factual_auditor | importance_auditor | single_model */
     private String agentKey;
 
     /** idle | queued | running | success | warning | error | revising */

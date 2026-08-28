@@ -2,6 +2,7 @@ package com.imsummary.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.HtmlUtils;
 
 /**
  * 摘要 JSON → Markdown 渲染，对齐 docs/prompt-strategy/03_Markdown渲染规范.md。
@@ -31,7 +32,7 @@ public class MarkdownRenderer {
         JsonNode importantMessages = structured.path("importantMessages");
         if (importantMessages.isArray() && !importantMessages.isEmpty()) {
             sb.append("### 工作简报\n\n");
-            sb.append("#### 重要消息（按相关人员划分）\n");
+            sb.append("#### 重要消息\n");
             java.util.LinkedHashMap<String, java.util.List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
             for (JsonNode message : importantMessages) {
                 JsonNode stakeholders = message.path("stakeholders");
@@ -51,7 +52,7 @@ public class MarkdownRenderer {
                     sb.append("* [").append(message.path("type").asText("其他")).append(" / ")
                             .append(message.path("priority").asText("中")).append("] **")
                             .append(message.path("speaker").asText("未明确")).append(":** ")
-                            .append(message.path("content").asText()).append("\n")
+                            .append(cleanRichText(message.path("content").asText())).append("\n")
                             .append("  * **重要原因:** ").append(message.path("reason").asText("未明确")).append("\n");
                 }
             }
@@ -124,8 +125,10 @@ public class MarkdownRenderer {
             sb.append("\n");
         }
 
-        // 输出层统一移除装饰性表情，兼容旧结构化结果或模型字段中残留的标题符号。
-        return sb.toString().replaceAll("[⭐❗📋💬❓🎯✅⚠️🔔📌]", "");
+        // 输出层统一移除装饰性表情。
+        return sb.toString()
+                .replaceAll("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}]", "")
+                .replace("\uFE0F", "");
     }
 
     /** 分析模式标注：智能摘要两种模式 + 黄金摘要（人工参考） */
@@ -142,5 +145,12 @@ public class MarkdownRenderer {
     private String text(JsonNode node, String fallback) {
         String v = node.asText("");
         return v.isBlank() ? fallback : v;
+    }
+
+    /** 重要消息保留原文，只去除常见富文本标签并还原 HTML 实体。 */
+    private String cleanRichText(String value) {
+        String withoutTags = value.replaceAll(
+                "(?i)</?(?:p|br|div|span|a|strong|em|blockquote)(?:\\s[^>]*)?>", "");
+        return HtmlUtils.htmlUnescape(withoutTags).replace('\u00A0', ' ').trim();
     }
 }

@@ -24,18 +24,21 @@ public class EvaluationService {
     private final ModelProfileService profileService;
     private final ModelGateway gateway;
     private final JsonHelper json;
+    private final MarkdownRenderer markdownRenderer;
 
     public EvaluationService(EvaluationRecordRepository evaluationRepository,
                              SummaryResultRepository summaryRepository,
                              GoldenSummaryRepository goldenSummaryRepository,
                              ModelProfileService profileService,
-                             ModelGateway gateway, JsonHelper json) {
+                             ModelGateway gateway, JsonHelper json,
+                             MarkdownRenderer markdownRenderer) {
         this.evaluationRepository = evaluationRepository;
         this.summaryRepository = summaryRepository;
         this.goldenSummaryRepository = goldenSummaryRepository;
         this.profileService = profileService;
         this.gateway = gateway;
         this.json = json;
+        this.markdownRenderer = markdownRenderer;
     }
 
     /**
@@ -63,10 +66,11 @@ public class EvaluationService {
         } catch (Exception e) {
             throw new IllegalStateException("摘要结构化数据损坏，无法评测");
         }
-        String generatedText = summaryOnlyText(generatedStructured);
+        String generatedText = summaryOnlyText(generatedStructured, summary.getMode());
 
         // 1) ROUGE-L：本地计算（summary 对 golden）
-        double rougeL = rougeL(generatedText, golden.getContent());
+        double rougeL = rougeL(normalizeMarkdownForSimilarity(generatedText),
+                normalizeMarkdownForSimilarity(golden.getContent()));
 
         // 2) 摘要判分：输入中明确移除 importantMessages，llm_score 只评价摘要。
         double accuracy;
@@ -211,12 +215,23 @@ public class EvaluationService {
         return Math.round(v * 10000) / 10000.0;
     }
 
-    private String summaryOnlyText(JsonNode structured) {
+    private String summaryOnlyText(JsonNode structured, String mode) {
         if (!structured.isObject()) return json.toJson(structured);
         com.fasterxml.jackson.databind.node.ObjectNode copy =
                 ((com.fasterxml.jackson.databind.node.ObjectNode) structured).deepCopy();
-        copy.remove(List.of("importantMessages", "important_messages", "messages", "items", "personalHighlights"));
-        return json.toJson(copy);
+        copy.remove("importantMessages");
+        return markdownRenderer.render(copy, mode);
+    }
+
+    /** 文本相似度只比较可读内容，排除 Markdown 标记和生成模式标签。 */
+    private String normalizeMarkdownForSimilarity(String markdown) {
+        if (markdown == null) return "";
+        return markdown
+                .replaceAll("(?m)^\\*\\*分析模式:.*$", "")
+                .replaceAll("(?m)^#{1,6}\\s*", "")
+                .replaceAll("[*_`>|:-]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private Map<String, Object> toView(EvaluationRecordEntity r) {

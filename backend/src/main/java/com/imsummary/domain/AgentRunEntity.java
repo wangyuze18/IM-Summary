@@ -33,8 +33,6 @@ public class AgentRunEntity {
 
     private int revisionNo;
 
-    private String targetUserId;
-
     /** RunModelConfigSnapshot JSON（profileId/modelName/协议/凭据引用，不含明文密钥） */
     @Column(columnDefinition = "CLOB")
     private String modelConfigSnapshotJson;

@@ -19,8 +19,6 @@ public class ConversationSessionEntity {
 
     private String title;
 
-    private String targetUserId;
-
     /** 群信息（群名、成员、时间范围等） */
     @Column(columnDefinition = "CLOB")
     private String groupInfoJson;

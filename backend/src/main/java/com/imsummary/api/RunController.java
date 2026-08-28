@@ -15,13 +15,12 @@ public class RunController {
         this.analysisService = analysisService;
     }
 
-    /** 启动分析：{ "mode": "agent-workflow|single-model", "targetUserId": "可选" } */
+    /** 启动分析：{ "mode": "agent-workflow|single-model" }；不再接受个人关注目标。 */
     @PostMapping("/api/sessions/{sessionId}/runs")
     public Map<String, Object> startRun(@PathVariable String sessionId,
                                         @RequestBody(required = false) Map<String, String> body) {
         String mode = body == null ? null : body.get("mode");
-        String targetUserId = body == null ? null : body.get("targetUserId");
-        return analysisService.startRun(sessionId, mode, targetUserId);
+        return analysisService.startRun(sessionId, mode);
     }
 
     @GetMapping("/api/runs/{runId}")

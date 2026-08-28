@@ -45,6 +45,9 @@ public class SummaryController {
             Map<String, Object> m = toView(s);
             m.remove("markdown"); // 列表不返回全文
             m.remove("structured");
+            m.remove("eventLedger");
+            m.remove("summaryAudit");
+            m.remove("importanceAudit");
             return m;
         }).toList();
     }
@@ -74,6 +77,9 @@ public class SummaryController {
         view.put("markdown", s.getMarkdown());
         view.put("structured", s.getStructuredJson());
         view.put("evidenceLinks", s.getEvidenceLinksJson());
+        view.put("eventLedger", s.getEventLedgerJson());
+        view.put("summaryAudit", s.getSummaryAuditJson());
+        view.put("importanceAudit", s.getImportanceAuditJson());
         view.put("auditStatus", s.getAuditStatus());
         view.put("generatedAt", s.getGeneratedAt());
         return view;

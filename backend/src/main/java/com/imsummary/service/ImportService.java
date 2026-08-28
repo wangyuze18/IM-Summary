@@ -160,8 +160,7 @@ public class ImportService {
         ConversationSessionEntity session = new ConversationSessionEntity();
         session.setSessionId(UUID.randomUUID().toString());
         session.setTitle((String) parsed.preview().get("title"));
-        session.setTargetUserId(root.path("session").path("targetUserId").asText(null));
-        session.setGroupInfoJson(json.toJson(root.path("group")));
+        session.setGroupInfoJson(json.toJson(withoutPersonalTarget(root.path("group"))));
         session.setMessagesJson(json.toJson(root.path("messages")));
         session.setUsersJson(root.has("users") ? json.toJson(root.path("users")) : "[]");
         session.setRelationshipsJson(root.has("relationships") ? json.toJson(root.path("relationships")) : "[]");
@@ -212,11 +211,7 @@ public class ImportService {
         String evalSampleId = root.path("scenarioPlan").path("evalSampleId").asText("");
         ObjectNode session = std.putObject("session");
         session.put("title", evalSampleId.isBlank() ? groupName : groupName + "（" + evalSampleId + "）");
-        if (root.path("group").hasNonNull("targetUser")) {
-            session.put("targetUserId", root.path("group").path("targetUser").asText());
-        }
-
-        std.set("group", root.path("group"));
+        std.set("group", withoutPersonalTarget(root.path("group")));
 
         ArrayNode messages = std.putArray("messages");
         for (JsonNode m : root.path("messages")) {
@@ -253,9 +248,11 @@ public class ImportService {
 
         JsonNode golden = root.path("groundTruth").path("goldenSummary");
         if (!golden.isMissingNode() && !golden.isNull()) {
-            // 与智能摘要共用同一 Markdown 渲染模式（mode=golden），便于人工对照
+            // 黄金摘要与黄金重要消息分开保存，防止 llm_score/ROUGE 被重要消息污染。
             ObjectNode normalizedGolden = std.putObject("goldenSummary");
-            normalizedGolden.put("content", markdownRenderer.render(golden, "golden"));
+            ObjectNode summaryOnly = golden.isObject() ? ((ObjectNode) golden).deepCopy() : mapper.createObjectNode();
+            summaryOnly.remove("importantMessages");
+            normalizedGolden.put("content", markdownRenderer.render(summaryOnly, "golden"));
             JsonNode important = root.path("groundTruth").path("importantMessages");
             if (!important.isArray()) {
                 important = golden.path("importantMessages");
@@ -265,6 +262,14 @@ public class ImportService {
             }
         }
         return std;
+    }
+
+    /** 群组元信息只描述群本身；数据集中的评测目标用户不进入会话、界面或模型上下文。 */
+    private JsonNode withoutPersonalTarget(JsonNode group) {
+        if (!group.isObject()) return group;
+        ObjectNode sanitized = ((ObjectNode) group).deepCopy();
+        sanitized.remove("targetUser");
+        return sanitized;
     }
 
     /** 惰性清理超过保留时长的待确认导入 */

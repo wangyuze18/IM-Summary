@@ -87,45 +87,11 @@ public final class PromptTemplates {
             }
             """;
 
-    /** Stage 2b：用户上下文卡 */
-    public static final String USER_CONTEXT_SYSTEM = GLOBAL_RULES + """
-            ## 你的职责（User Context Agent）
-            为目标用户构造最小必要的 User Context Card：只包含当前群聊、当前事件可能用到的职位、职责与关系。
-            禁止：修改事件事实；把历史偏好或关系当作当前会话事实；因职位高低判定消息重要。
-
-            ## 输出 JSON 格式
-            {
-              "targetUserId":"u1",
-              "position":"职位",
-              "responsibilities":["职责1"],
-              "relevantRelations":[{"relatedUserId":"u2","relationType":"reports_to","direction":"in","scope":"组织"}]
-            }
-            无目标用户时输出 {"targetUserId":null}。
-            """;
-
-    /** Stage 3：个性化相关性 */
-    public static final String RELEVANCE_SYSTEM = GLOBAL_RULES + """
-            ## 你的职责（Personalized Relevance Agent）
-            在不改变事实的前提下，判断每个有效事件对目标用户的重要程度与原因。
-            综合考虑：事件本身重要性、岗位相关性、职责匹配、人与人关系、直接@。输出可解释 reasonCodes。
-            禁止：产生新的决议/待办/负责人/截止日期；仅因领导发言自动标最高重要。
-            无目标用户时所有事件 importance 统一为 "medium"，reasonCodes 为空数组。
-
-            ## 输出 JSON 格式
-            {
-              "personalizedEvents": [{
-                "eventId":"E1","importance":"high|medium|low",
-                "relevance":{"role":0.8,"responsibility":0.9,"relationship":0.5,"directMention":0.0},
-                "reasonCodes":["RESPONSIBILITY_MATCH"],
-                "explanation":"一句话相关性说明"
-              }]
-            }
-            """;
-
-    /** Stage 4：摘要生成 */
+    /** Stage 3：摘要生成 */
     public static final String SUMMARY_SYSTEM = GLOBAL_RULES + """
             ## 你的职责（Summary Agent）
-            根据已校验事件与个性化排序生成结构化摘要。优先使用当前有效事件（不得输出被 superseded/cancelled 的旧结论作为当前事实）。
+            根据共享证据账本生成结构化摘要。账本只用于组织事实，关键结论必须能回溯到原始消息。
+            优先使用当前有效事件，不得把 superseded/cancelled/rejected 的旧状态写成当前事实。
             风格总纲：信息密度高，每条用一句完整短句陈述，保留关键定语、对象与版本号等实体。
             长度参考：摘要每条<=30字；决议 title<=32字；决议 context<=20字；议题 process/conclusion 各<=45字；待办 task<=20字。
 
@@ -162,7 +128,7 @@ public final class PromptTemplates {
             {"passed":true,"issues":[{"type":"false_positive|omission|source|state|stakeholder|schema","severity":"error|warning","messageId":"m01","description":"问题","suggestion":"如何修订"}]}
             """;
 
-    /** Stage 5a：事实审核 */
+    /** Stage 4：摘要事实审核 */
     public static final String FACTUAL_AUDITOR_SYSTEM = GLOBAL_RULES + """
             ## 你的职责（Factual Auditor）
             检查摘要是否忠实于事件与原始消息。检查项：
@@ -176,24 +142,6 @@ public final class PromptTemplates {
               "issues":[{"type":"hallucination|omission|decision_validity|todo_validity|state|entity|schema",
                 "severity":"error|warning","fieldPath":"todos[0].owner",
                 "eventId":"E1","description":"问题描述","routeTo":"summary|state|context_event"}]
-            }
-            无问题时 passed 为 true 且 issues 为空数组。
-            """;
-
-    /** Stage 5b：个性化审核 */
-    public static final String PERSONALIZATION_AUDITOR_SYSTEM = GLOBAL_RULES + """
-            ## 你的职责（Personalization Auditor）
-            检查个性化重要性判断与解释是否符合 User Context Card。检查项：
-            Relevance Grounding（理由是否有画像/职责/关系依据）、Over-personalization（是否过度放大无关事件）、
-            Personal Coverage（是否遗漏明显相关事件）、Boundary（是否由画像/关系推导出新事实或待办）。
-            不挑战已由事实链确认的事件真实性。
-
-            ## 输出 JSON 格式
-            {
-              "passed":true,
-              "issues":[{"type":"grounding|over_personalization|coverage|boundary",
-                "severity":"error|warning","fieldPath":"personalizedEvents[0].importance",
-                "description":"问题描述","routeTo":"summary|relevance|user_context"}]
             }
             无问题时 passed 为 true 且 issues 为空数组。
             """;

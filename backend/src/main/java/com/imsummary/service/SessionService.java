@@ -69,7 +69,6 @@ public class SessionService {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("sessionId", s.getSessionId());
         detail.put("title", s.getTitle());
-        detail.put("targetUserId", s.getTargetUserId());
         detail.put("group", parseQuiet(s.getGroupInfoJson()));
         detail.put("messages", parseQuiet(s.getMessagesJson()));
         detail.put("users", parseQuiet(s.getUsersJson()));

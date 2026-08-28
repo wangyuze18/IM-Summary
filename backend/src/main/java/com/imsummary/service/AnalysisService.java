@@ -27,9 +27,9 @@ public class AnalysisService {
         this.stepRepository = stepRepository;
     }
 
-    public Map<String, Object> startRun(String sessionId, String mode, String targetUserId) {
+    public Map<String, Object> startRun(String sessionId, String mode) {
         String normalizedMode = "single-model".equals(mode) ? "single-model" : "agent-workflow";
-        AgentRunEntity run = orchestrator.startRun(sessionId, normalizedMode, targetUserId);
+        AgentRunEntity run = orchestrator.startRun(sessionId, normalizedMode);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("runId", run.getRunId());
         result.put("status", run.getStatus());

@@ -14,13 +14,13 @@ class MarkdownRendererTest {
     void rendersImportantMessagesGroupedByEveryStakeholder() throws Exception {
         JsonNode structured = json.parse("""
                 {"groupName":"研发群","period":"2026-08-27","abstractPoints":["完成版本评审。"],
-                 "importantMessages":[{"speaker":"@张三","content":"请@李四今天修复登录问题","type":"待办","priority":"高",
+                 "importantMessages":[{"speaker":"@张三","content":"<p>请@李四今天修复登录问题&nbsp;</p>","type":"待办","priority":"高",
                  "stakeholders":["开发-@李四","管理-@王五"],"reason":"阻塞发版"}]}
                 """);
 
         String markdown = renderer.render(structured, "agent-workflow");
 
-        assertThat(markdown).contains("### 工作简报", "#### 重要消息（按相关人员划分）");
+        assertThat(markdown).contains("### 工作简报", "#### 重要消息");
         assertThat(markdown).contains("**开发-@李四**", "**管理-@王五**");
         assertThat(markdown).contains("[待办 / 高] **@张三:** 请@李四今天修复登录问题");
     }
@@ -32,18 +32,17 @@ class MarkdownRendererTest {
     }
 
     @Test
-    void stripsDecorativeEmojiAndIgnoresLegacyPersonalHighlights() throws Exception {
+    void stripsDecorativeEmoji() throws Exception {
         JsonNode structured = json.parse("""
-                {"groupName":"⭐研发群","abstractPoints":["❗完成发布。"],
-                 "personalHighlights":[{"content":"不应显示"}]}
+                {"groupName":"⭐研发群","abstractPoints":["❗完成发布。"]}
                 """);
         String markdown = renderer.render(structured, "agent-workflow");
-        assertThat(markdown).doesNotContain("⭐", "❗", "个人", "不应显示");
+        assertThat(markdown).doesNotContain("⭐", "❗");
         assertThat(markdown).contains("**分析模式:** 团队模式");
     }
 
     @Test
-    void extractsTopLevelJsonArrayForImportanceCompatibility() throws Exception {
+    void extractsTopLevelJsonArrayForImportanceModelOutput() throws Exception {
         String value = json.extractJsonValue("```json\n[{\"speaker\":\"@张三\",\"content\":\"修复问题\"}]\n```");
         assertThat(json.parse(value).isArray()).isTrue();
         assertThat(json.parse(value)).hasSize(1);

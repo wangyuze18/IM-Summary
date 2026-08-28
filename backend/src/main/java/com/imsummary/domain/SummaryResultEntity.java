@@ -36,6 +36,18 @@ public class SummaryResultEntity {
     @Column(columnDefinition = "CLOB")
     private String evidenceLinksJson;
 
+    /** 团队模式共享证据账本；基础模式为 null。 */
+    @Column(columnDefinition = "CLOB")
+    private String eventLedgerJson;
+
+    /** 团队模式最后一轮摘要审核报告。 */
+    @Column(columnDefinition = "CLOB")
+    private String summaryAuditJson;
+
+    /** 团队模式最后一轮重要消息审核报告。 */
+    @Column(columnDefinition = "CLOB")
+    private String importanceAuditJson;
+
     /** passed | warning | not_audited（single-model 模式不审核） */
     private String auditStatus;
 
