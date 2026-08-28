@@ -36,8 +36,7 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
     }
 
     protected String endpoint(String baseUrl) {
-        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        return normalized.endsWith("/chat/completions") ? normalized : normalized + "/chat/completions";
+        return endpointCandidates(baseUrl, "/chat/completions").get(0);
     }
 
     protected String modelsEndpoint(String baseUrl) {
@@ -45,21 +44,55 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
         if (normalized.endsWith("/chat/completions")) {
             normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
         }
-        return normalized.endsWith("/models") ? normalized : normalized + "/models";
+        return endpointCandidates(normalized, "/models").get(0);
+    }
+
+    /**
+     * 兼容用户填写服务根地址或完整 /v1 地址。保留显式路径的最高优先级，
+     * 只在 URL path 中没有版本段时追加同主机的 /v1 回退候选。
+     */
+    protected List<String> endpointCandidates(String baseUrl, String suffix) {
+        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        if (normalized.endsWith(suffix)) {
+            return List.of(normalized);
+        }
+        String direct = normalized + suffix;
+        String path = URI.create(normalized).getPath();
+        boolean hasVersionSegment = path != null && path.matches(".*/v\\d+(?:[^/]*)?(?:/.*)?$");
+        return hasVersionSegment ? List.of(direct) : List.of(direct, normalized + "/v1" + suffix);
     }
 
     @Override
     public List<String> listModels(String baseUrl, String apiKey) throws Exception {
-        JsonNode json = get(modelsEndpoint(baseUrl), apiKey);
-        List<String> models = new ArrayList<>();
-        for (JsonNode item : json.path("data")) {
-            String id = item.path("id").asText("");
-            if (!id.isBlank()) {
-                models.add(id);
+        Exception last = null;
+        for (String candidate : endpointCandidates(stripChatSuffix(baseUrl), "/models")) {
+            try {
+                JsonNode json = get(candidate, apiKey);
+                List<String> models = new ArrayList<>();
+                for (JsonNode item : json.path("data")) {
+                    String id = item.path("id").asText("");
+                    if (!id.isBlank()) {
+                        models.add(id);
+                    }
+                }
+                if (!models.isEmpty()) {
+                    models.sort(String.CASE_INSENSITIVE_ORDER);
+                    return models;
+                }
+            } catch (Exception e) {
+                if (isAuthenticationFailure(e)) throw e;
+                last = e;
             }
         }
-        models.sort(String.CASE_INSENSITIVE_ORDER);
-        return models;
+        if (last != null) throw last;
+        return List.of();
+    }
+
+    private String stripChatSuffix(String baseUrl) {
+        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        return normalized.endsWith("/chat/completions")
+                ? normalized.substring(0, normalized.length() - "/chat/completions".length())
+                : normalized;
     }
 
     protected JsonNode get(String url, String apiKey) throws Exception {
@@ -84,7 +117,7 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
     public GatewayModels.ChatResponse chat(String baseUrl, String apiKey, String modelName,
                                            GatewayModels.ChatRequest request) throws Exception {
         ObjectNode body = buildRequestBody(modelName, request);
-        JsonNode json = post(endpoint(baseUrl), apiKey, body);
+        JsonNode json = postWithVersionFallback(baseUrl, apiKey, body);
         String content = json.path("choices").path(0).path("message").path("content").asText("");
         boolean thinkingUsed = request.enableThinking()
                 && json.path("choices").path(0).path("message").has("reasoning_content");
@@ -130,6 +163,25 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
         return mapper.readTree(response.body());
     }
 
+    protected JsonNode postWithVersionFallback(String baseUrl, String apiKey, ObjectNode body) throws Exception {
+        Exception last = null;
+        for (String candidate : endpointCandidates(baseUrl, "/chat/completions")) {
+            try {
+                return post(candidate, apiKey, body);
+            } catch (Exception e) {
+                if (isAuthenticationFailure(e)) throw e;
+                last = e;
+            }
+        }
+        if (last != null) throw last;
+        throw new ModelCallException("OpenAI-compatible 服务地址无效", null);
+    }
+
+    private boolean isAuthenticationFailure(Exception e) {
+        return e instanceof ModelCallException call
+                && (call.getHttpStatus() == 401 || call.getHttpStatus() == 403);
+    }
+
     /** 只提取简短错误信息，不回显完整响应体（可能含敏感内容） */
     protected String shortError(String body) {
         try {
@@ -149,7 +201,7 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
                     java.util.List.of(new GatewayModels.ChatMessage("user", "ping")),
                     0.0, false));
             body.put("max_tokens", 16);
-            JsonNode json = post(endpoint(baseUrl), apiKey, body);
+            JsonNode json = postWithVersionFallback(baseUrl, apiKey, body);
             boolean ok = json.hasNonNull("choices");
             boolean thinkingDetected = detectThinking(json, modelName);
             return new GatewayModels.TestResult(ok, ok ? null : "响应缺少 choices 字段", thinkingDetected);
