@@ -38,15 +38,12 @@
 排除：寒暄、收到/好的/谢谢、表情、重复转述、无结论提议和普通过程闲聊。
 
 原文：content必须对应一条原始消息，只能去HTML与首尾空白；不得合并、改写或补充。
-人员：speaker保留原始@名称；stakeholders只列明确提及、被指派或职责字段可直接确定的人员，格式“角色-@姓名”，无法确定使用“未明确”。
-优先级：高=阻断/明确截止/关键决议/高风险；中=普通待办或关键进度；低=辅助性重要信息。
+说话人：speaker必须等于原消息的senderDisplayName，只填写人物本名，不加@、职位或角色。
 去重：重复事实保留信息最完整或最终状态的一条；状态变更时保留最新有效消息。
 
-只输出JSON：
+每条只允许messageId、speaker、content、reason四个字段。只输出JSON：
 {"importantMessages":[{
-  "messageId":"原消息ID","speaker":"@说话者","content":"原文",
-  "type":"待办|决议|风险|审批|进度|阻断|其他",
-  "priority":"高|中|低","stakeholders":["角色-@人员"],
+  "messageId":"原消息ID","speaker":"张三","content":"原文",
   "reason":"业务影响，不超过25字"
 }]}
 无重要消息时输出{"importantMessages":[]}。

@@ -81,18 +81,18 @@ m20 没有负责人，m21 才形成明确指派。重要消息可选择 m21，co
 {
   "importantMessages": [
     {
-      "messageId":"m31","speaker":"@乙","content":"生产证书明天过期，当前发布会被阻断。",
-      "type":"阻断","priority":"高","stakeholders":["发布-@乙"],"reason":"证书到期阻塞发布"
+      "messageId":"m31","speaker":"乙","content":"生产证书明天过期，当前发布会被阻断。",
+      "reason":"证书到期阻塞发布"
     },
     {
-      "messageId":"m32","speaker":"@甲","content":"我下午三点前完成证书续期并通知测试。",
-      "type":"待办","priority":"高","stakeholders":["执行-@甲","测试-未明确"],"reason":"含明确任务与截止时间"
+      "messageId":"m32","speaker":"甲","content":"我下午三点前完成证书续期并通知测试。",
+      "reason":"含明确任务与截止时间"
     }
   ]
 }
 ```
 
-m30 是寒暄，应排除。stakeholder 角色映射没有可靠资料时应使用“未明确”，不得虚构具体姓名。
+m30 是寒暄，应排除。speaker 使用原始发送者本名，不添加 `@` 或角色信息。
 
 ## 示例五：摘要审核路由
 
