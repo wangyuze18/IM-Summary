@@ -104,7 +104,7 @@ public class ImportService {
         }
         JsonNode users = root.path("users");
         if (users.isMissingNode() || !users.isArray() || users.isEmpty()) {
-            issues.add(issue("WARNING", "未提供用户画像，个性化能力将降级"));
+            issues.add(issue("WARNING", "未提供成员角色信息，重要消息的角色分组能力将降级"));
         }
         JsonNode relationships = root.path("relationships");
         if (relationships.isMissingNode() || !relationships.isArray() || relationships.isEmpty()) {

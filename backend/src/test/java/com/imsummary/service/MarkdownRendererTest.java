@@ -30,4 +30,22 @@ class MarkdownRendererTest {
         JsonNode structured = json.parse("{\"groupName\":\"研发群\",\"importantMessages\":[]}");
         assertThat(renderer.render(structured, "single-model")).doesNotContain("### 工作简报");
     }
+
+    @Test
+    void stripsDecorativeEmojiAndIgnoresLegacyPersonalHighlights() throws Exception {
+        JsonNode structured = json.parse("""
+                {"groupName":"⭐研发群","abstractPoints":["❗完成发布。"],
+                 "personalHighlights":[{"content":"不应显示"}]}
+                """);
+        String markdown = renderer.render(structured, "agent-workflow");
+        assertThat(markdown).doesNotContain("⭐", "❗", "个人", "不应显示");
+        assertThat(markdown).contains("**分析模式:** 团队模式");
+    }
+
+    @Test
+    void extractsTopLevelJsonArrayForImportanceCompatibility() throws Exception {
+        String value = json.extractJsonValue("```json\n[{\"speaker\":\"@张三\",\"content\":\"修复问题\"}]\n```");
+        assertThat(json.parse(value).isArray()).isTrue();
+        assertThat(json.parse(value)).hasSize(1);
+    }
 }

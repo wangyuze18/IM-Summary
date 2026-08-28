@@ -59,4 +59,24 @@ public class JsonHelper {
         }
         return text;
     }
+
+    /** 提取顶层 JSON 对象或数组；用于允许数组直出的重要消息任务。 */
+    public String extractJsonValue(String raw) {
+        if (raw == null) return "{}";
+        String text = raw.trim();
+        if (text.startsWith("```")) {
+            int firstNewline = text.indexOf('\n');
+            int lastFence = text.lastIndexOf("```");
+            if (firstNewline > 0 && lastFence > firstNewline) {
+                text = text.substring(firstNewline + 1, lastFence).trim();
+            }
+        }
+        int objectStart = text.indexOf('{');
+        int arrayStart = text.indexOf('[');
+        if (arrayStart >= 0 && (objectStart < 0 || arrayStart < objectStart)) {
+            int end = text.lastIndexOf(']');
+            return end > arrayStart ? text.substring(arrayStart, end + 1) : text;
+        }
+        return extractJsonObject(text);
+    }
 }

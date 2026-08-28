@@ -39,6 +39,8 @@ public class MarkdownRenderer {
                     for (JsonNode stakeholder : stakeholders) {
                         grouped.computeIfAbsent(stakeholder.asText("未明确"), k -> new java.util.ArrayList<>()).add(message);
                     }
+                } else if (stakeholders.isTextual() && !stakeholders.asText().isBlank()) {
+                    grouped.computeIfAbsent(stakeholders.asText(), k -> new java.util.ArrayList<>()).add(message);
                 } else {
                     grouped.computeIfAbsent("未明确", k -> new java.util.ArrayList<>()).add(message);
                 }
@@ -122,18 +124,19 @@ public class MarkdownRenderer {
             sb.append("\n");
         }
 
-        return sb.toString();
+        // 输出层统一移除装饰性表情，兼容旧结构化结果或模型字段中残留的标题符号。
+        return sb.toString().replaceAll("[⭐❗📋💬❓🎯✅⚠️🔔📌]", "");
     }
 
     /** 分析模式标注：智能摘要两种模式 + 黄金摘要（人工参考） */
     private String modeLabel(String mode) {
         if ("agent-workflow".equals(mode)) {
-            return "Agent 团队模式";
+            return "团队模式";
         }
         if ("golden".equals(mode)) {
             return "黄金摘要（人工参考）";
         }
-        return "单模型";
+        return "基础模式";
     }
 
     private String text(JsonNode node, String fallback) {

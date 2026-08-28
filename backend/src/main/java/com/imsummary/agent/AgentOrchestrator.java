@@ -37,18 +37,17 @@ public class AgentOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(AgentOrchestrator.class);
 
-    /** agent-workflow 的 7 个 Agent 键（顺序用于快照解析与进度权重） */
+    /** 团队模式：共享事实链，双生成器并行，双审核器并行。 */
     public static final List<String> WORKFLOW_AGENT_KEYS = List.of(
-            "context_event", "state", "user_context", "relevance",
-            "summary", "importance_extractor", "factual_auditor", "personalization_auditor");
+            "context_event", "state", "summary", "importance_extractor",
+            "factual_auditor", "importance_auditor");
 
     private static final List<String> SINGLE_AGENT_KEYS = List.of("single_model", "importance_extractor");
 
     /** 各阶段进度权重（编排器计算，前端不自行推算） */
     private static final Map<String, Integer> STEP_WEIGHT = Map.of(
-            "context_event", 16, "state", 10, "user_context", 10, "relevance", 10,
-            "summary", 18, "importance_extractor", 16, "factual_auditor", 10, "personalization_auditor", 10,
-            "single_model", 84);
+            "context_event", 18, "state", 14, "summary", 22, "importance_extractor", 18,
+            "factual_auditor", 14, "importance_auditor", 14, "single_model", 50);
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
     private final ExecutorService parallelGroup = Executors.newFixedThreadPool(4);
@@ -125,9 +124,9 @@ public class AgentOrchestrator {
         executor.submit(() -> {
             try {
                 if ("single-model".equals(mode)) {
-                    executeSingleModel(run, session, snapshot, thinking);
+                    executeBaselineMode(run, session, snapshot, thinking);
                 } else {
-                    executeWorkflow(run, session, snapshot, thinking);
+                    executeTeamMode(run, session, snapshot, thinking);
                 }
             } catch (Exception e) {
                 failRun(run, "RUN_FAILED", e.getMessage());
@@ -374,7 +373,10 @@ public class AgentOrchestrator {
                 new GatewayModels.ChatRequest(system,
                         List.of(new GatewayModels.ChatMessage("user", userPrompt)),
                         0.2, thinking));
-        return json.parse(json.extractJsonObject(response.content()));
+        String value = "importance_extractor".equals(agentKey)
+                ? json.extractJsonValue(response.content())
+                : json.extractJsonObject(response.content());
+        return json.parse(value);
     }
 
     /** 串行阶段调用：失败时由主线程同步更新 run/step 状态 */
@@ -454,14 +456,152 @@ public class AgentOrchestrator {
                 .mapToInt(SummaryResultEntity::getVersion).max().orElse(0) + 1;
     }
 
+    /**
+     * 团队模式：先建立共享、可追溯的事实链，再并行生成摘要和重要消息；
+     * 两类结果分别审核，并将审核意见反馈给各自生成器定向修订。
+     */
+    private void executeTeamMode(AgentRunEntity run, ConversationSessionEntity session,
+                                 Map<String, ModelApiProfileEntity> snapshot, boolean thinking) throws Exception {
+        updateRun(run, "running");
+        String dialogue = renderDialogue(session.getMessagesJson());
+        String groupContext = "群组信息：" + session.getGroupInfoJson();
+
+        setStep(run, "context_event", "running", "重建主题与原子事件");
+        JsonNode contextEvent = callAgentJson(run, snapshot, thinking, "context_event",
+                PromptTemplates.CONTEXT_EVENT_SYSTEM,
+                groupContext + "\n\n" + PromptTemplates.renderDialogue(dialogue));
+        finishStep(run, "context_event", "success", "抽取 " + contextEvent.path("events").size() + " 个事件");
+
+        setStep(run, "state", "running", "校验决议、待办与最终状态");
+        JsonNode stateResult = callAgentJson(run, snapshot, thinking, "state",
+                PromptTemplates.STATE_SYSTEM,
+                "初始事件：\n" + json.toJson(contextEvent.path("events")) + "\n原始消息：\n" + dialogue);
+        JsonNode validatedEvents = mergeState(contextEvent.path("events"), stateResult);
+        finishStep(run, "state", "success", "事件状态校验完成");
+
+        String sharedFacts = groupContext + "\n有效事件账本：\n" + json.toJson(validatedEvents)
+                + "\n原始消息（用于实体和原文核验）：\n" + dialogue;
+        JsonNode summary = null;
+        JsonNode importance = null;
+        String feedback = "";
+        boolean passed = false;
+        boolean warning = false;
+
+        for (int revision = 0; revision <= maxRevision; revision++) {
+            setStep(run, "summary", revision == 0 ? "running" : "revising", "并行生成结构化摘要");
+            setStep(run, "importance_extractor", revision == 0 ? "running" : "revising", "并行抽取原始重要消息");
+            final String generationFeedback = feedback;
+            Future<JsonNode> summaryFuture = parallelGroup.submit(() -> callModel(snapshot, thinking, "summary",
+                    PromptTemplates.SUMMARY_SYSTEM, sharedFacts + generationFeedback));
+            Future<JsonNode> importanceFuture = parallelGroup.submit(() -> normalizeImportantOutput(callModel(snapshot, thinking,
+                    "importance_extractor", PromptTemplates.IMPORTANCE_SYSTEM, sharedFacts + generationFeedback)));
+            try {
+                summary = summaryFuture.get();
+                importance = importanceFuture.get();
+            } catch (Exception e) {
+                summaryFuture.cancel(true);
+                importanceFuture.cancel(true);
+                throw unwrapExecutionException(e);
+            }
+            JsonNode combined = mergeImportantMessages(summary, importance);
+            finishStep(run, "summary", "success", "摘要生成完成");
+            finishStep(run, "importance_extractor", "success",
+                    "抽取 " + combined.path("importantMessages").size() + " 条重要消息");
+
+            setStep(run, "factual_auditor", "running", "审核摘要事实与遗漏");
+            setStep(run, "importance_auditor", "running", "审核重要消息精确率与覆盖");
+            final JsonNode auditCombined = combined;
+            Future<JsonNode> summaryAuditFuture = parallelGroup.submit(() -> callModel(snapshot, thinking, "factual_auditor",
+                    PromptTemplates.FACTUAL_AUDITOR_SYSTEM, sharedFacts + "\n候选摘要：\n" + json.toJson(auditCombined)));
+            Future<JsonNode> importanceAuditFuture = parallelGroup.submit(() -> callModel(snapshot, thinking, "importance_auditor",
+                    PromptTemplates.IMPORTANCE_AUDITOR_SYSTEM, sharedFacts + "\n候选重要消息：\n" + json.toJson(auditCombined.path("importantMessages"))));
+            JsonNode summaryAudit = summaryAuditFuture.get();
+            JsonNode importanceAudit = importanceAuditFuture.get();
+            boolean errors = hasSeverity(summaryAudit, "error") || hasSeverity(importanceAudit, "error");
+            warning = hasSeverity(summaryAudit, "warning") || hasSeverity(importanceAudit, "warning");
+            passed = summaryAudit.path("passed").asBoolean(false) && importanceAudit.path("passed").asBoolean(false);
+            finishStep(run, "factual_auditor", errors ? "warning" : "success", errors ? "摘要需定向修订" : "摘要审核通过");
+            finishStep(run, "importance_auditor", errors ? "warning" : "success", errors ? "重要消息需定向修订" : "重要消息审核通过");
+            summary = combined;
+            if (!errors || revision == maxRevision) break;
+            run.setRevisionNo(revision + 1);
+            run.setStatus("revising");
+            runRepository.save(run);
+            feedback = "\n上一轮审核意见，只修订被指出的问题：\n摘要审核=" + json.toJson(summaryAudit.path("issues"))
+                    + "\n重要消息审核=" + json.toJson(importanceAudit.path("issues"));
+        }
+
+        persistSummary(run, session, summary, passed ? (warning ? "warning" : "passed") : "warning",
+                extractEvidence(validatedEvents));
+        updateRun(run, passed ? "completed" : "completed_with_warning");
+        notify(run, "run.completed", null);
+    }
+
+    /** 基础模式（baseline）：摘要模型与重要消息模型基于同一原始输入真正并行，且不审核、不共享中间推理。 */
+    private void executeBaselineMode(AgentRunEntity run, ConversationSessionEntity session,
+                                     Map<String, ModelApiProfileEntity> snapshot, boolean thinking) throws Exception {
+        updateRun(run, "running");
+        String dialogue = renderDialogue(session.getMessagesJson());
+        String input = "群组信息：" + session.getGroupInfoJson() + "\n" + PromptTemplates.renderDialogue(dialogue);
+        setStep(run, "single_model", "running", "基础摘要模型生成中");
+        setStep(run, "importance_extractor", "running", "基础重要消息模型抽取中");
+        Future<JsonNode> summaryFuture = parallelGroup.submit(() -> callModel(snapshot, thinking, "single_model",
+                PromptTemplates.SINGLE_MODEL_SYSTEM, input));
+        Future<JsonNode> importanceFuture = parallelGroup.submit(() -> normalizeImportantOutput(callModel(snapshot, thinking,
+                "importance_extractor", PromptTemplates.IMPORTANCE_SYSTEM, input)));
+        JsonNode summary;
+        JsonNode importance;
+        try {
+            summary = summaryFuture.get();
+            importance = importanceFuture.get();
+        } catch (Exception e) {
+            summaryFuture.cancel(true);
+            importanceFuture.cancel(true);
+            throw unwrapExecutionException(e);
+        }
+        finishStep(run, "single_model", "success", "基础摘要生成完成");
+        finishStep(run, "importance_extractor", "success", "基础重要消息抽取完成");
+        persistSummary(run, session, mergeImportantMessages(summary, importance), "not_audited", null);
+        updateRun(run, "completed");
+        notify(run, "run.completed", null);
+    }
+
+    private Exception unwrapExecutionException(Exception e) {
+        Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+        return cause instanceof Exception ex ? ex : new RuntimeException(cause);
+    }
+
     private JsonNode mergeImportantMessages(JsonNode summary, JsonNode importance) {
         com.fasterxml.jackson.databind.node.ObjectNode merged = summary != null && summary.isObject()
                 ? ((com.fasterxml.jackson.databind.node.ObjectNode) summary).deepCopy()
                 : json.mapper().createObjectNode();
-        JsonNode messages = importance == null ? null : importance.path("importantMessages");
+        JsonNode normalized = normalizeImportantOutput(importance);
+        JsonNode messages = normalized.path("importantMessages");
         merged.set("importantMessages", messages != null && messages.isArray()
                 ? messages.deepCopy() : json.mapper().createArrayNode());
         return merged;
+    }
+
+    /** 兼容模型返回顶层数组、包装对象，以及 messages/items 等常见别名。 */
+    private JsonNode normalizeImportantOutput(JsonNode raw) {
+        com.fasterxml.jackson.databind.node.ObjectNode normalized = json.mapper().createObjectNode();
+        JsonNode messages = null;
+        if (raw != null && raw.isArray()) messages = raw;
+        if (raw != null && raw.isObject()) {
+            for (String key : List.of("importantMessages", "important_messages", "messages", "items")) {
+                if (raw.path(key).isArray()) {
+                    messages = raw.path(key);
+                    break;
+                }
+            }
+            if (messages == null && (raw.hasNonNull("content") || raw.hasNonNull("speaker"))) {
+                com.fasterxml.jackson.databind.node.ArrayNode singleton = json.mapper().createArrayNode();
+                singleton.add(raw.deepCopy());
+                messages = singleton;
+            }
+        }
+        normalized.set("importantMessages", messages == null ? json.mapper().createArrayNode() : messages.deepCopy());
+        return normalized;
     }
 
     private JsonNode mergeState(JsonNode events, JsonNode stateResult) {

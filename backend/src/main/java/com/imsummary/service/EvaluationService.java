@@ -12,8 +12,7 @@ import java.time.Instant;
 import java.util.*;
 
 /**
- * 评测服务：黄金摘要存在时计算 Accuracy / Recall / 关键信息遗漏率 / ROUGE-L / 综合质量评分（LLM Score）。
- * ROUGE-L 本地计算；Accuracy/Recall/遗漏率/综合质量评分由评测判分模型（evaluation_judge 绑定）给出。
+ * 评测服务：摘要四项与重要消息两项严格分开评测；llmScore 只评价摘要主体。
  * 不含自动对比能力；历史记录支持按模式筛选与导出。
  */
 @Service
@@ -58,13 +57,18 @@ public class EvaluationService {
                     .orElseThrow(() -> new NoSuchElementException("该会话尚无摘要，请先运行分析"));
         }
 
-        String generatedText = summary.getMarkdown() != null ? summary.getMarkdown()
-                : summary.getStructuredJson();
+        JsonNode generatedStructured;
+        try {
+            generatedStructured = json.parse(summary.getStructuredJson());
+        } catch (Exception e) {
+            throw new IllegalStateException("摘要结构化数据损坏，无法评测");
+        }
+        String generatedText = summaryOnlyText(generatedStructured);
 
         // 1) ROUGE-L：本地计算（summary 对 golden）
         double rougeL = rougeL(generatedText, golden.getContent());
 
-        // 2) 判分模型：accuracy / recall / omission / llm_score（模型设置中单独绑定 evaluation_judge）
+        // 2) 摘要判分：输入中明确移除 importantMessages，llm_score 只评价摘要。
         double accuracy;
         double omission;
         double llmScore;
@@ -74,11 +78,8 @@ public class EvaluationService {
             Map<String, ModelApiProfileEntity> snapshot =
                     profileService.resolveRunSnapshot(List.of("evaluation_judge"));
             ModelApiProfileEntity judgeProfile = snapshot.get("evaluation_judge");
-            String judgeInput = "生成摘要：\n" + generatedText
-                    + "\n\n生成结构化结果：\n" + summary.getStructuredJson()
-                    + "\n\n黄金摘要（人工参考答案）：\n" + golden.getContent()
-                    + "\n\n黄金重要消息标注：\n"
-                    + (golden.getImportantMessagesJson() == null ? "[未标注]" : golden.getImportantMessagesJson());
+            String judgeInput = "生成摘要主体：\n" + generatedText
+                    + "\n\n黄金摘要（人工参考答案）：\n" + golden.getContent();
             GatewayModels.ChatResponse resp = gateway.chat(judgeProfile,
                     new GatewayModels.ChatRequest(PromptTemplates.EVALUATION_JUDGE_SYSTEM,
                             List.of(new GatewayModels.ChatMessage("user", judgeInput)),
@@ -87,9 +88,17 @@ public class EvaluationService {
             accuracy = metrics.path("accuracy").asDouble(0.0);
             omission = metrics.path("keyInformationOmissionRate").asDouble(0.0);
             llmScore = Math.max(0, Math.min(100, metrics.path("llm_score").asDouble(0.0)));
+
+            // 3) 重要消息独立判分，不向该判分器提供摘要，也不产生 llm_score。
             if (golden.getImportantMessagesJson() != null) {
-                importantPrecision = round(metrics.path("importantMessagePrecision").asDouble(0.0));
-                importantRecall = round(metrics.path("importantMessageRecall").asDouble(0.0));
+                String importanceInput = "生成重要消息：\n" + json.toJson(generatedStructured.path("importantMessages"))
+                        + "\n\n黄金重要消息：\n" + golden.getImportantMessagesJson();
+                GatewayModels.ChatResponse importanceResp = gateway.chat(judgeProfile,
+                        new GatewayModels.ChatRequest(PromptTemplates.IMPORTANCE_EVALUATION_SYSTEM,
+                                List.of(new GatewayModels.ChatMessage("user", importanceInput)), 0.0, false));
+                JsonNode importanceMetrics = json.parse(json.extractJsonObject(importanceResp.content()));
+                importantPrecision = round(importanceMetrics.path("importantMessagePrecision").asDouble(0.0));
+                importantRecall = round(importanceMetrics.path("importantMessageRecall").asDouble(0.0));
             }
         } catch (IllegalStateException configError) {
             throw configError;
@@ -200,6 +209,14 @@ public class EvaluationService {
 
     private double round(double v) {
         return Math.round(v * 10000) / 10000.0;
+    }
+
+    private String summaryOnlyText(JsonNode structured) {
+        if (!structured.isObject()) return json.toJson(structured);
+        com.fasterxml.jackson.databind.node.ObjectNode copy =
+                ((com.fasterxml.jackson.databind.node.ObjectNode) structured).deepCopy();
+        copy.remove(List.of("importantMessages", "important_messages", "messages", "items", "personalHighlights"));
+        return json.toJson(copy);
     }
 
     private Map<String, Object> toView(EvaluationRecordEntity r) {
