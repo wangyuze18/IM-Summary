@@ -24,7 +24,7 @@ mvn package                # 打包为 target/im-summary-backend-*.jar
 ```
 backend/src/main/java/com/imsummary/
 ├── api/              # REST Controller（imports/sessions/runs/summaries/evaluations/model-profiles）
-├── agent/            # AgentOrchestrator（8-Agent 双任务 DAG + 单模型双任务基线）、PromptTemplates
+├── agent/            # AgentOrchestrator（团队双审核 DAG + 基础双模型并行 baseline）、PromptTemplates
 ├── gateway/          # ModelGateway + 协议适配器（OpenAI兼容/Anthropic/Custom）
 ├── service/          # Import / Session / Analysis / Evaluation / ModelProfile / MarkdownRenderer
 ├── domain/           # JPA 实体（会话、运行、摘要/重要消息、黄金标注、评测记录、模型配置）
@@ -51,7 +51,7 @@ backend/src/main/java/com/imsummary/
 
 ## 设计约束实现说明
 
-- **双分析模式**：`agent-workflow`（8-Agent 双任务 DAG，摘要与重要消息进入 Auditor 闭环）；`single-model`（摘要生成与重要消息直接抽取，不审核，`auditStatus=not_audited`）
+- **双分析模式**：`agent-workflow` 为团队模式，摘要与重要消息并行生成并分别审核修订；`single-model` 为基础模式，两个模型直接并行、不审核（`auditStatus=not_audited`）。
 - **Run 配置快照**：启动前解析"默认档案 + Agent 覆盖"，无效则阻断；运行中修改配置不影响当前 Run
 - **评测**：Accuracy/Recall/遗漏率由判官模型计算，ROUGE-L 本地计算；历史记录含 `mode` 字段，无自动对比
 - **评测过期**：新摘要产生后旧评测记录自动标记 `outdated`

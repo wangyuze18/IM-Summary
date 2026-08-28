@@ -37,7 +37,7 @@ src/
    └─ components/                    # 组件命名对齐设计文档 §15
       ├─ WindowHeader.tsx
       ├─ OfflineSessionSidebar.tsx   # NativeFileImportButton / FileDropZone / SessionSearch / LocalSessionList
-      ├─ AnalysisModeSwitcher.tsx    # 模式切换器（Agent 团队 / 单模型基础）
+      ├─ AnalysisModeSwitcher.tsx    # 模式切换器（团队模式 / 基础模式）
       ├─ AgentWorkflowPanel.tsx      # 8-Agent 双任务工作流 + ElapsedTime
       ├─ SingleModelProgressPanel.tsx
       ├─ RawConversationPanel.tsx    # 原始群聊（证据高亮定位、@提及联动）
