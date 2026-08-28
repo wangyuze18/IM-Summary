@@ -281,7 +281,7 @@ export interface ListModelsRequest {
   apiKey?: string
 }
 
-/** POST /api/model-profiles/models 返回；仅 openai-compatible 支持 */
+/** POST /api/model-profiles/models 返回 */
 export interface ListModelsResponse {
   models: string[]
 }

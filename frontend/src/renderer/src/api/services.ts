@@ -149,7 +149,7 @@ export function testModelProfile(body: TestProfileRequest): Promise<ModelProfile
 
 /**
  * 获取模型列表：携带 profileId 时用已保存档案（可省略 apiKey），否则按草稿探测。
- * 仅 OpenAI 兼容协议支持，其他协议后端返回 MODEL_CALL_FAILED 错误体。
+ * OpenAI 兼容、自定义兼容服务与 Anthropic 均通过各自模型列表接口探测。
  */
 export function listProfileModels(body: ListModelsRequest): Promise<ListModelsResponse> {
   return httpJson('/api/model-profiles/models', { method: 'POST', json: body, timeoutMs: 30_000 })

@@ -13,6 +13,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +38,41 @@ public class AnthropicAdapter implements ModelProviderAdapter {
     private String endpoint(String baseUrl) {
         String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return normalized.endsWith("/messages") ? normalized : normalized + "/messages";
+    }
+
+    private String modelsEndpoint(String baseUrl) {
+        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        if (normalized.endsWith("/messages")) {
+            normalized = normalized.substring(0, normalized.length() - "/messages".length());
+        }
+        return normalized.endsWith("/models") ? normalized : normalized + "/models";
+    }
+
+    @Override
+    public List<String> listModels(String baseUrl, String apiKey) throws Exception {
+        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(modelsEndpoint(baseUrl)))
+                .timeout(Duration.ofSeconds(Math.min(timeoutSeconds, 30)))
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .GET()
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new ModelCallException(response.statusCode(),
+                    "获取模型列表失败（HTTP " + response.statusCode() + "）：" + shortError(response.body()));
+        }
+        JsonNode json = mapper.readTree(response.body());
+        List<String> models = new ArrayList<>();
+        for (JsonNode item : json.path("data")) {
+            String id = item.path("id").asText("");
+            if (!id.isBlank()) {
+                models.add(id);
+            }
+        }
+        models.sort(String.CASE_INSENSITIVE_ORDER);
+        return models;
     }
 
     @Override

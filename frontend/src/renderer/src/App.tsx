@@ -468,6 +468,15 @@ export default function App() {
     return res.models
   }
 
+  const handleInspectModel = async (req: { providerType: ModelProfile['providerType']; baseUrl: string; apiKey: string; modelName: string }) => {
+    const result = await testModelProfile(req)
+    return {
+      available: result.connectionStatus === 'available',
+      thinkingModeSupported: result.thinkingModeSupported,
+      error: result.lastErrorMessage ?? undefined
+    }
+  }
+
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
       toast('后端未连接，无法保存配置', 'error')
@@ -481,9 +490,11 @@ export default function App() {
       modelName: p.modelName,
       apiKey: p.apiKey
     })
-      .then((view) => {
+      .then(async (view) => {
+        const testedView = await testModelProfile({ profileId: view.profileId }).catch(() => view)
+        const resolvedView = 'profileId' in testedView ? testedView : view
         // 保留内存中的明文 Key，供设置界面持续回显（每次保存均提交后端）
-        const mapped = { ...mapModelProfile(view), thinkingModeEnabled: p.thinkingModeEnabled, apiKey: p.apiKey }
+        const mapped = { ...mapModelProfile(resolvedView), thinkingModeEnabled: p.thinkingModeEnabled, apiKey: p.apiKey }
         // 在线新建首个档案时后端尚无默认配置，同步一次绑定，否则 Run 启动会因"未配置默认模型档案"失败
         if (defaultProfileId == null) {
           void saveModelBindings(buildBindingsRequest(view.profileId, bindings)).catch((e) =>
@@ -825,6 +836,7 @@ export default function App() {
           onToggleThinking={handleToggleThinking}
           onBindingChange={handleBindingChange}
           onFetchModels={backendOnline ? handleFetchModels : undefined}
+          onInspectModel={backendOnline ? handleInspectModel : undefined}
           onToast={toast}
         />
       )}

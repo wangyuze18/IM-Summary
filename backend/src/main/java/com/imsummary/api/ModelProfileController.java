@@ -68,7 +68,7 @@ public class ModelProfileController {
     /**
      * 获取模型列表（body 与 /test 一致）：
      * - 携带 profileId：用已保存档案（可选携带新 apiKey）
-     * - 不携带 profileId：按草稿配置探测；仅 openai-compatible 支持
+     * - 不携带 profileId：按草稿配置探测
      */
     @PostMapping("/models")
     public Map<String, Object> listModels(@RequestBody Map<String, Object> body) {

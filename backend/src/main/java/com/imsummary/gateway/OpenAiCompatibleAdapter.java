@@ -42,6 +42,9 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
 
     protected String modelsEndpoint(String baseUrl) {
         String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        if (normalized.endsWith("/chat/completions")) {
+            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
+        }
         return normalized.endsWith("/models") ? normalized : normalized + "/models";
     }
 
