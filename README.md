@@ -1,50 +1,97 @@
-# 企业 IM 智能摘要平台 (IM-Summary)
+# IM-Summary：企业群聊双任务分析平台
 
-面向企业 IM 的双任务分析平台：同时生成结构化智能摘要，并按相关人员抽取原始重要消息。支持双模型并行直出的基础模式，以及共享事实链和双审核闭环的团队模式。
+IM-Summary 同时完成两项互补任务：生成结构化工作简报，以及从原始群聊中抽取可追溯的重要消息。项目提供可公平比较的基础模式与团队模式，目标是验证共享证据、状态消歧和任务专属审核对摘要质量及重要消息精确率/召回率的贡献。
 
-## 项目结构
+![基础模式与团队模式贡献概览](docs/assets/team-mode-vs-baseline-acl.png)
 
+## 论文故事
+
+真实工作群聊不是一篇干净的文章，而是一条持续变化的事件流：同一议题会交叉讨论，提议可能被否决，发布日期可能反复修改，一条重要消息还必须保留原文与受影响人员。直接生成容易把“有人提议”写成“团队决定”，也容易抓到显眼但没有业务价值的消息。
+
+基础模式把两个模型作为朴素对照组：摘要生成和重要消息分别读取同一批原始消息，并行直出结果，彼此不共享推理结果，也不经过审核。
+
+团队模式把这项工作映射为现实中的编辑部：事件研究员先整理线索，状态专员确认当前有效事实；摘要撰稿人和消息分析员在同一份证据账本上并行工作；两名审校员分别检查摘要与重要消息，发现问题时只退回对应任务定向修订。它的核心贡献不是“多调用几次模型”，而是让两个任务共享事实层、保持输出目标独立，并用任务专属反馈形成可控闭环。
+
+```text
+基础模式
+原始群聊 ─┬─ 摘要生成 ───────┐
+           └─ 重要消息 ───────┴─ 工作简报
+
+团队模式
+原始群聊 → 事件识别 → 状态判断 → 共享证据账本
+                                  ├─ 摘要生成 → 摘要审核 ─┐
+                                  └─ 重要消息 → 消息审核 ─┴─ 工作简报
+                                              不通过时仅修订对应分支
 ```
-IM-Summary/
-├── backend/               # Java 后端（Spring Boot，待开发）
-├── frontend/              # 桌面端前端（技术栈不限，待开发）
-├── docs/
-│   ├── design/            # 前后端最终设计文档
-│   ├── prompt-strategy/   # 团队工作流 Prompt 设计策略 + 单模型基线
-│   ├── evaluation/        # 评测方案与质量验收标准
-│   └── data-spec/         # 数据规范（待补充）
-├── prompts/               # 各 Agent 的 Prompt 模板文件（待落地）
-├── CONTRIBUTING.md        # GitHub 开发提交规范
-└── README.md
-```
 
-## 核心架构
+## 两种模式
 
-- **双分析模式**：
-  - `agent-workflow`：团队模式（事件/状态事实链 → 摘要与重要消息并行 → 双 Auditor 并行 → 定向修订）
-  - `single-model`：基础模式（摘要模型与重要消息模型并行直出），作为 baseline
-- **事实主线**: Event Ledger（消息证据驱动）
-- **个性化主线**: User Context Card（画像/关系驱动）
-- **双审核闭环**: Factual + Personalization Auditor → 定向修订
-- **模型可配置**: 支持 OpenAI 兼容 / Anthropic / 自定义协议，前端配置 + 状态检测
+| 维度 | 基础模式 | 团队模式 |
+| :--- | :--- | :--- |
+| 输入 | 两个模型各自读取原始群聊 | 先构建共享证据账本 |
+| 生成 | 摘要与重要消息并行直出 | 两个任务基于同一有效事件并行生成 |
+| 状态处理 | 依赖单次提示词理解 | 显式区分 proposed、confirmed、superseded 等状态 |
+| 质量控制 | 无审核和修订 | 两个独立审核器，按任务定向返工 |
+| 可解释性 | 最终结果 | 事件、证据消息 ID、审核问题和修订记录 |
+| 实验角色 | baseline | proposed agent workflow |
+
+两种模式共用“重要消息”模型配置与相同原始输入，避免用更强的抽取模型制造不公平提升。团队模式的预期收益来自证据组织和审核闭环，实际提升以同一数据集上的六项指标为准。
+
+## 输出与评测
+
+生成结果统一渲染为工作群聊分析简报。“重要消息”位于“摘要”小节之下，按受影响人员/角色分组，并保留说话者、原始消息、类型、优先级和重要原因。页面和导出结果不显示装饰性表情，也不包含账户个人或个人关注项。
+
+评测页在同一行展示六项指标，并在下方保留可筛选、可导出的历史表格：
+
+| 摘要任务 | 重要消息任务 |
+| :--- | :--- |
+| 摘要准确率、关键信息遗漏率、文本相似度、LLM 文本评分 | 重要消息精确率、重要消息召回率 |
+
+`llm_score` 只评价摘要主体；重要消息没有黄金标注时，精确率和召回率显示“暂无标注”，不会用摘要分数代替。
 
 ## 技术栈
 
-- **后端**: Java（Spring Boot 3.x + JDK 17+）
-- **前端**: 不限制（Electron/Tauri + Web 框架，或纯 Web）
+- 前端：Electron、React 18、TypeScript、Vite
+- 后端：Java 17、Spring Boot 3.3、Spring Data JPA、H2
+- 模型接入：OpenAI-compatible Chat Completions API
+- 通信：REST、WebSocket 进度事件
 
-## 设计文档索引
+## 快速启动
 
-| 文档 | 说明 |
-|------|------|
-| `docs/design/后端设计文档_V5_最终版.md` | Web 后台架构、模型配置、双模式、评测 |
-| `docs/design/前端设计文档_V4_最终版.md` | 桌面端界面、模式切换、模型设置、评测历史 |
-| `docs/prompt-strategy/00_Prompt设计总纲.md` | 团队工作流 Prompt 设计原则与模板 |
-| `docs/prompt-strategy/02_单模型基础模式Prompt.md` | 基线模式 Prompt（含参考实现） |
-| `docs/prompt-strategy/03_Markdown渲染规范.md` | 摘要 JSON → Markdown 渲染标准 |
-| `docs/evaluation/01_评测方案.md` | 质量指标、评测流程、人工对比与导出 |
+启动后端：
 
-## 版本
+```powershell
+cd backend
+mvn spring-boot:run
+```
 
-- V0.2 设计文档定稿 + 开发规范（2026-08-26）
-- V0.1 初始化（2026-08-26）
+启动桌面端：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+在设置中添加模型 API 配置并完成模型绑定；随后从左侧导入 JSON 样例，选择基础模式或团队模式运行。前端不内置 mock 数据，后端未连接时不会展示伪造会话或评测结果。
+
+## 验证
+
+```powershell
+cd backend
+mvn test
+
+cd ..\frontend
+npm run typecheck
+npm run build
+```
+
+## 文档
+
+- [后端设计](docs/design/后端设计文档_V5_最终版.md)
+- [前端设计](docs/design/前端设计文档_V4_最终版.md)
+- [Prompt 设计总纲](docs/prompt-strategy/00_Prompt设计总纲.md)
+- [Few-shot 示例](docs/prompt-strategy/01_Few-shot示例集.md)
+- [基础模式 Prompt](docs/prompt-strategy/02_单模型模式Prompt.md)
+- [Markdown 渲染规范](docs/prompt-strategy/03_Markdown渲染规范.md)
+- [评测方案](docs/evaluation/01_评测方案.md)

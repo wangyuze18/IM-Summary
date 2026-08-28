@@ -1,67 +1,61 @@
-# 后端 (backend) — Java / Spring Boot
+# IM-Summary Backend
 
-企业 IM 智能摘要平台 Web 后台服务（Demo 级，不考虑高并发）。
+Spring Boot 后端负责导入、模型配置、两种分析工作流、结构化结果渲染、运行进度和六指标评测。后端不提供 mock 回退。
 
-## 技术栈
+## 运行
 
-- **Java 17 + Spring Boot 3.3**
-- **Spring Data JPA + H2**（文件模式持久化，数据位于 `backend/data/`）
-- **Spring WebSocket (STOMP)**：Agent 进度推送，HTTP 查询兜底
-- **Model Gateway**：协议适配器（openai-compatible / anthropic / custom），统一超时/重试/错误标准化
-- **凭据安全**：API Key AES-GCM 加密存储，接口仅返回掩码
+要求 Java 17 与 Maven 3.9+。
 
-## 快速开始
-
-```bash
-cd backend
-mvn spring-boot:run        # 启动 http://localhost:8080
-mvn compile                # 仅编译验证
-mvn package                # 打包为 target/im-summary-backend-*.jar
+```powershell
+mvn spring-boot:run
 ```
 
-## 模块结构
+默认地址为 `http://localhost:8080`，H2 文件数据库位于 `backend/data/`。凭据使用 `IMSUMMARY_SECRET` 加密；模型超时可通过 `IMSUMMARY_MODEL_TIMEOUT_SECONDS` 调整。
 
-```
-backend/src/main/java/com/imsummary/
-├── api/              # REST Controller（imports/sessions/runs/summaries/evaluations/model-profiles）
-├── agent/            # AgentOrchestrator（团队双审核 DAG + 基础双模型并行 baseline）、PromptTemplates
-├── gateway/          # ModelGateway + 协议适配器（OpenAI兼容/Anthropic/Custom）
-├── service/          # Import / Session / Analysis / Evaluation / ModelProfile / MarkdownRenderer
-├── domain/           # JPA 实体（会话、运行、摘要/重要消息、黄金标注、评测记录、模型配置）
-├── repository/       # Spring Data JPA
-├── security/         # CredentialStore（凭据加密）
-└── config/           # WebSocket 配置、全局异常映射
-```
+## 分析工作流
 
-## 关键 API
+### 基础模式
 
-| 能力 | 接口 |
-|------|------|
-| 导入预检查 | `POST /api/imports/validate`（multipart） |
+`single_model` 与 `importance_extractor` 同时读取原始群聊并并行执行。前者生成摘要，后者逐条抽取重要消息。它们不共享中间产物，不调用审核器，是实验 baseline。
+
+### 团队模式
+
+1. `context_event` 从原始消息重建议题并抽取带证据 ID 的原子事件。
+2. `state` 判断确认、进行中、覆盖、取消等状态，形成共享证据账本。
+3. `summary` 与 `importance_extractor` 基于相同有效事实并行生成。
+4. `factual_auditor` 与 `importance_auditor` 分别检查摘要和重要消息。
+5. 任一分支不通过时，只携带该分支的问题进行定向修订和复审，最多执行配置的修订次数。
+
+最终结构化结果包含 `importantMessages`；团队模式还保存 `eventLedgerJson`、`summaryAuditJson`、`importanceAuditJson` 和证据关联，供前端质量详情展示。
+
+## 主要接口
+
+| 功能 | 接口 |
+| :--- | :--- |
+| 后端探测 | `GET /api/health` |
+| 导入预检 | `POST /api/imports/validate` |
 | 确认导入 | `POST /api/imports/{importId}/confirm` |
-| 会话列表/详情 | `GET /api/sessions` / `GET /api/sessions/{id}` |
-| 组织关系 | `GET /api/sessions/{id}/organization` |
-| 启动分析 | `POST /api/sessions/{id}/runs`（body: `{"mode":"agent-workflow\|single-model","targetUserId":"?"}`） |
-| 运行状态 | `GET /api/runs/{runId}`（HTTP 兜底） |
-| 进度订阅 | STOMP `/topic/runs/{runId}`（endpoint `/ws`） |
-| 摘要/导出 | `GET /api/sessions/{id}/summary`、`GET /api/summaries/{id}/export?type=markdown\|json` |
-| 黄金摘要 | 仅随导入携带，无手动接口；未携带时评测返回 `409 NOT_EVALUABLE` |
-| 评测 | `POST /api/sessions/{id}/evaluations`、`GET .../evaluations`、`GET .../evaluations/export?format=csv\|json\|markdown` |
-| 模型配置 | `GET/POST/DELETE /api/model-profiles`、`POST /api/model-profiles/test`、`GET/PUT /api/model-profiles/bindings` |
+| 会话列表/详情 | `GET /api/sessions`、`GET /api/sessions/{id}` |
+| 删除会话 | `DELETE /api/sessions/{id}` |
+| 启动分析 | `POST /api/sessions/{id}/runs`，body 为 `{"mode":"agent-workflow"}` 或 `{"mode":"single-model"}` |
+| 运行状态 | `GET /api/runs/{runId}` |
+| 摘要结果 | `GET /api/summaries/{summaryId}` |
+| 启动评测 | `POST /api/sessions/{id}/evaluations` |
+| 评测历史 | `GET /api/sessions/{id}/evaluations` |
+| 模型配置 | `/api/model-profiles`、`/api/model-bindings` |
 
-## 设计约束实现说明
+分析接口不接收账户或目标用户字段。组织关系里的 `targetUserId` 仅表示一条图边的目标端点，与个人关注无关。
 
-- **双分析模式**：`agent-workflow` 为团队模式，摘要与重要消息并行生成并分别审核修订；`single-model` 为基础模式，两个模型直接并行、不审核（`auditStatus=not_audited`）。
-- **Run 配置快照**：启动前解析"默认档案 + Agent 覆盖"，无效则阻断；运行中修改配置不影响当前 Run
-- **评测**：Accuracy/Recall/遗漏率由判官模型计算，ROUGE-L 本地计算；历史记录含 `mode` 字段，无自动对比
-- **评测过期**：新摘要产生后旧评测记录自动标记 `outdated`
-- **导入校验分级**：ERROR 阻断 / WARNING 允许 / INFO 提示；messageId 唯一性校验
-- 详细契约见 `docs/design/后端设计文档_V5_最终版.md`
+## 数据与评测约束
 
-## 示例数据
+- 摘要模型输出结构化摘要；重要消息模型输出可追溯到单条原消息的数组。
+- Markdown 渲染器去除装饰性 Unicode 表情，不渲染个人关注字段。
+- 摘要评测输入会剥离重要消息，产出准确率、遗漏率、文本相似度与 `llm_score`。
+- 重要消息使用独立判分提示词，只产出精确率和召回率。
+- 导入样例未提供黄金重要消息时，两项重要消息指标为空值。
 
-`backend/samples/sample-session.json` 符合导入数据规范（含用户画像、关系与黄金摘要），可用于冒烟测试：
+## 测试
 
-```bash
-curl -F "file=@backend/samples/sample-session.json" http://localhost:8080/api/imports/validate
+```powershell
+mvn test
 ```
