@@ -9,10 +9,12 @@ import type {
   ConversationSession,
   EvaluationRecord,
   EvidenceLink,
+  AuditReport,
   ModelProfile,
   OrganizationRelation,
   RoleCategory,
   SummaryResult,
+  WorkflowEvent,
   UserProfile
 } from '../../../shared/types'
 import type {
@@ -27,7 +29,7 @@ import type {
   SummaryView
 } from './wireTypes'
 
-/** 后端 ISO 时间 → 界面展示格式（与原型 mock 的 zh-CN 风格一致） */
+/** 后端 ISO 时间 → 界面展示格式。 */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -45,7 +47,7 @@ export function formatClock(iso: string | null | undefined): string {
 
 // ---------- Agent key / 状态枚举映射 ----------
 
-/** 后端下划线命名 → 前端连字符命名（single_model / evaluation_judge 仅参与模型绑定，不在工作流步骤面板展示） */
+/** 后端下划线命名 → 前端连字符命名。 */
 const AGENT_KEY_FROM_BACKEND: Record<string, AgentKey> = {
   context_event: 'context-event',
   state: 'state',
@@ -167,10 +169,9 @@ function relationLabelZh(label: string): string {
 }
 
 /**
- * 后端组织图 → 前端成员/关系视图（V4.4：群组信息与组织关系改用真实数据）。
- * targetUserId 用于组织图居中，不作为「当前用户」展示（单用户 Demo）。
+ * 后端组织图 → 前端成员/关系视图。不建立账户个人或目标用户视角。
  */
-export function mapOrganization(graph: OrganizationGraphView, targetUserId: string | null): {
+export function mapOrganization(graph: OrganizationGraphView): {
   members: UserProfile[]
   relations: OrganizationRelation[]
 } {
@@ -181,8 +182,7 @@ export function mapOrganization(graph: OrganizationGraphView, targetUserId: stri
       name: n.displayName || n.userId,
       role,
       employeeId: n.employeeNo ?? '—',
-      roleCategory: inferRoleCategory(role),
-      isTargetUser: targetUserId != null && n.userId === targetUserId
+      roleCategory: inferRoleCategory(role)
     }
   })
   const relations: OrganizationRelation[] = graph.edges.map((e) => ({
@@ -237,6 +237,49 @@ function parseEvidenceLinks(raw: string | null): EvidenceLink[] {
   }
 }
 
+function parseEventLedger(raw: string | null): WorkflowEvent[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((event): event is Record<string, unknown> => event !== null && typeof event === 'object')
+      .map((event) => ({
+        eventId: typeof event.eventId === 'string' ? event.eventId : '',
+        content: typeof event.content === 'string' ? event.content : '',
+        state: typeof event.state === 'string' ? event.state : undefined,
+        evidenceMessageIds: Array.isArray(event.evidenceMessageIds) ? event.evidenceMessageIds.map(String) : []
+      }))
+  } catch {
+    return []
+  }
+}
+
+function parseAuditReport(raw: string | null): AuditReport | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const record = parsed as Record<string, unknown>
+    const issues = Array.isArray(record.issues)
+      ? record.issues
+          .filter((issue): issue is Record<string, unknown> => issue !== null && typeof issue === 'object')
+          .map((issue) => ({
+            type: typeof issue.type === 'string' ? issue.type : 'unknown',
+            severity: typeof issue.severity === 'string' ? issue.severity : 'warning',
+            description: typeof issue.description === 'string' ? issue.description : '未提供问题说明',
+            fieldPath: typeof issue.fieldPath === 'string' ? issue.fieldPath : undefined,
+            messageId: typeof issue.messageId === 'string' ? issue.messageId : undefined,
+            eventId: typeof issue.eventId === 'string' ? issue.eventId : undefined,
+            suggestion: typeof issue.suggestion === 'string' ? issue.suggestion : undefined
+          }))
+      : []
+    return { passed: record.passed === true, issues }
+  } catch {
+    return null
+  }
+}
+
 export function mapSummary(view: SummaryView): SummaryResult {
   return {
     summaryId: view.summaryId,
@@ -245,7 +288,11 @@ export function mapSummary(view: SummaryView): SummaryResult {
     version: view.version,
     markdown: view.markdown ?? '',
     generatedAt: formatDateTime(view.generatedAt),
-    evidenceLinks: parseEvidenceLinks(view.evidenceLinks)
+    evidenceLinks: parseEvidenceLinks(view.evidenceLinks),
+    auditStatus: view.auditStatus ?? (view.mode === 'single-model' ? 'not_audited' : 'warning'),
+    eventLedger: parseEventLedger(view.eventLedger),
+    summaryAudit: parseAuditReport(view.summaryAudit),
+    importanceAudit: parseAuditReport(view.importanceAudit)
   }
 }
 

@@ -79,20 +79,28 @@ function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: {
 }
 
 function OrgGraph({ members, relations, highlightUserId, full }: { members: UserProfile[]; relations: OrganizationRelation[]; highlightUserId: string | null; full?: boolean }) {
-  const target = members.find((m) => m.isTargetUser) ?? members[0] ?? null
-  // 简化模式：只画 targetUser 与最相关的 5 个成员（设计文档 §10.2）
+  // 无账户个人视角：按关系度选择结构中心，仅用于简化布局。
+  const center = useMemo(() => {
+    if (members.length === 0) return null
+    const degree = new Map<string, number>()
+    relations.forEach((relation) => {
+      degree.set(relation.fromUserId, (degree.get(relation.fromUserId) ?? 0) + 1)
+      degree.set(relation.toUserId, (degree.get(relation.toUserId) ?? 0) + 1)
+    })
+    return [...members].sort((a, b) => (degree.get(b.userId) ?? 0) - (degree.get(a.userId) ?? 0))[0]
+  }, [members, relations])
   const shownMembers = useMemo(() => {
-    if (!target) return []
+    if (!center) return []
     if (full) return members
     const related = relations
-      .filter((r) => r.fromUserId === target.userId || r.toUserId === target.userId)
-      .map((r) => (r.fromUserId === target.userId ? r.toUserId : r.fromUserId))
+      .filter((r) => r.fromUserId === center.userId || r.toUserId === center.userId)
+      .map((r) => (r.fromUserId === center.userId ? r.toUserId : r.fromUserId))
     const unique = [...new Set(related)].slice(0, 5)
-    return members.filter((m) => m.userId === target.userId || unique.includes(m.userId))
-  }, [members, relations, target, full])
+    return members.filter((m) => m.userId === center.userId || unique.includes(m.userId))
+  }, [members, relations, center, full])
 
   // 在线模式组织图加载完成前 members 为空：占位展示，避免取 target 属性崩溃（V4.4）
-  if (!target) {
+  if (!center) {
     return (
       <div className="org-empty" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: full ? 340 : 150, color: 'var(--text-3)', fontSize: 12 }}>
         组织关系加载中…
@@ -109,9 +117,9 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
   const cy = H / 2
   const radius = full ? 140 : 56
 
-  const others = shownMembers.filter((m) => m.userId !== target.userId)
+  const others = shownMembers.filter((m) => m.userId !== center.userId)
   const pos = new Map<string, { x: number; y: number }>()
-  pos.set(target.userId, { x: cx, y: cy })
+  pos.set(center.userId, { x: cx, y: cy })
   others.forEach((m, i) => {
     const angle = (Math.PI * 2 * i) / others.length - Math.PI / 2
     pos.set(m.userId, { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) })
@@ -142,19 +150,19 @@ function OrgGraph({ members, relations, highlightUserId, full }: { members: User
       })}
       {shownMembers.map((m) => {
         const p = pos.get(m.userId)!
-        const isTarget = m.userId === target.userId
+        const isCenter = m.userId === center.userId
         return (
           <g key={m.userId} className={`org-node ${highlightUserId === m.userId ? 'hl' : ''}`}>
             <title>{`${m.name} · ${m.role} · 工号 ${m.employeeId}`}</title>
-            <circle cx={p.x} cy={p.y} r={isTarget ? 17 : 13} fill={avatarColor(m.userId)} opacity={isTarget ? 1 : 0.88} />
-            <circle cx={p.x + (isTarget ? 12 : 9)} cy={p.y - (isTarget ? 12 : 9)} r={4} fill={ROLE_COLORS[m.roleCategory]} stroke="#fff" strokeWidth={1.2} />
-            <text x={p.x} y={p.y + 3.5} textAnchor="middle" fontSize={isTarget ? 10 : 8.5} fill="#fff" fontWeight={600}>
+            <circle cx={p.x} cy={p.y} r={isCenter ? 17 : 13} fill={avatarColor(m.userId)} opacity={isCenter ? 1 : 0.88} />
+            <circle cx={p.x + (isCenter ? 12 : 9)} cy={p.y - (isCenter ? 12 : 9)} r={4} fill={ROLE_COLORS[m.roleCategory]} stroke="#fff" strokeWidth={1.2} />
+            <text x={p.x} y={p.y + 3.5} textAnchor="middle" fontSize={isCenter ? 10 : 8.5} fill="#fff" fontWeight={600}>
               {m.name.slice(-1)}
             </text>
-            <text x={p.x} y={p.y + (isTarget ? 30 : 25)} textAnchor="middle" fontSize={10} fill="#5b6a7d">
+            <text x={p.x} y={p.y + (isCenter ? 30 : 25)} textAnchor="middle" fontSize={10} fill="#5b6a7d">
               {m.name}
             </text>
-            <text x={p.x} y={p.y + (isTarget ? 41 : 35)} textAnchor="middle" fontSize={8} fill="#97a3b4">
+            <text x={p.x} y={p.y + (isCenter ? 41 : 35)} textAnchor="middle" fontSize={8} fill="#97a3b4">
               工号{m.employeeId}
             </text>
           </g>

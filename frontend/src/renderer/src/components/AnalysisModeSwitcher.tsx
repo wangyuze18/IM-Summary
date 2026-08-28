@@ -15,8 +15,8 @@ interface Props {
 }
 
 const MODES: { key: AnalysisMode; label: string; desc: string }[] = [
-  { key: 'agent-workflow', label: '团队模式', desc: '共享事实链与双审核闭环' },
-  { key: 'single-model', label: '基础模式', desc: '双模型并行 baseline' }
+  { key: 'agent-workflow', label: '团队模式', desc: '共享事实链与独立审核' },
+  { key: 'single-model', label: '基础模式', desc: '摘要与重要消息并行生成' }
 ]
 
 function formatElapsed(sec: number): string {

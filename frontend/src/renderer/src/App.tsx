@@ -1,5 +1,4 @@
-// DesktopAppShell —— 应用外壳与全局状态（设计文档 §15 组件结构）
-// 原型阶段：不连接后端，Run 执行/评测/模型探测均为本地模拟
+// DesktopAppShell —— 应用外壳与全局状态。业务数据只来自后端。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WindowHeader from './components/WindowHeader'
 import OfflineSessionSidebar from './components/OfflineSessionSidebar'
@@ -12,15 +11,6 @@ import EvaluationPanel from './components/EvaluationPanel'
 import CompactContextSidebar from './components/CompactContextSidebar'
 import LocalModelSettingsDialog from './components/LocalModelSettingsDialog'
 import ImportPreviewDialog from './components/ImportPreviewDialog'
-import {
-  MOCK_EVALUATION_HISTORY,
-  MOCK_GOLDEN,
-  MOCK_MEMBERS,
-  MOCK_MESSAGES,
-  MOCK_RELATIONS,
-  MOCK_SESSIONS,
-  buildMockSummaries
-} from './mockData'
 import {
   agentKeyFromBackend,
   agentKeyToBackend,
@@ -74,17 +64,8 @@ import type {
   UserProfile
 } from '../../shared/types'
 
-// 团队模式各 Agent 执行编排（毫秒）：两组并行关系与设计文档 §6.1 一致
-const AGENT_PLAN: { key: AgentKey; start: number; duration: number }[] = [
-  { key: 'context-event', start: 0, duration: 1200 },
-  { key: 'state', start: 1200, duration: 1600 },
-  { key: 'summary', start: 2800, duration: 1800 },
-  { key: 'importance-extractor', start: 2800, duration: 1800 },
-  { key: 'factual-auditor', start: 4600, duration: 1400 },
-  { key: 'importance-auditor', start: 4600, duration: 1600 }
-]
-const AGENT_TOTAL = 6200
-const SINGLE_TOTAL = 2600
+const TEAM_AGENT_KEYS: AgentKey[] = ['context-event', 'state', 'summary', 'importance-extractor', 'factual-auditor', 'importance-auditor']
+const BASELINE_AGENT_KEYS: AgentKey[] = ['single-model', 'importance-extractor']
 
 // 后端运行终态（对应 AgentRunEntity.status）
 const RUN_TERMINAL_STATUSES: BackendRunStatus[] = ['completed', 'completed_with_warning', 'failed', 'cancelled']
@@ -105,66 +86,25 @@ interface Toast {
   kind: 'info' | 'warn' | 'error'
 }
 
-const waitingSteps = (): AgentStepProgress[] =>
-  AGENT_PLAN.map((p) => ({ agentKey: p.key, status: 'waiting', warnings: [] }))
+const keysForMode = (mode: AnalysisMode): AgentKey[] => mode === 'agent-workflow' ? TEAM_AGENT_KEYS : BASELINE_AGENT_KEYS
 
-const completedSteps = (): AgentStepProgress[] =>
-  AGENT_PLAN.map((p) => ({ agentKey: p.key, status: 'completed', warnings: [] }))
+const waitingSteps = (keys: AgentKey[] = TEAM_AGENT_KEYS): AgentStepProgress[] =>
+  keys.map((agentKey) => ({ agentKey, status: 'waiting', warnings: [] }))
 
-function loadProfiles(): { profiles: ModelProfile[]; defaultProfileId: string | null } {
-  try {
-    const raw = localStorage.getItem('im-summary-model-settings')
-    if (raw) return JSON.parse(raw)
-  } catch {
-    /* ignore */
-  }
-  // 初始种子配置，便于演示；可在设置中修改/删除
-  return {
-    profiles: [
-      {
-        profileId: 'p-seed-1',
-        displayName: '主力大模型',
-        providerType: 'openai-compatible',
-        baseUrl: 'https://api.example.com/v1',
-        apiKeyMasked: 'sk-••••a1b2',
-        modelName: 'gpt-4o',
-        connectionStatus: 'available',
-        thinkingModeSupported: true,
-        thinkingModeEnabled: false,
-        lastTestedAt: '2026-08-26 09:12'
-      },
-      {
-        profileId: 'p-seed-2',
-        displayName: '基线模型',
-        providerType: 'anthropic',
-        baseUrl: 'https://api.anthropic.com',
-        apiKeyMasked: 'sk-••••c3d4',
-        modelName: 'claude-sonnet-4',
-        connectionStatus: 'untested',
-        thinkingModeSupported: null,
-        thinkingModeEnabled: false
-      }
-    ],
-    defaultProfileId: 'p-seed-1'
-  }
-}
+const completedSteps = (keys: AgentKey[] = TEAM_AGENT_KEYS): AgentStepProgress[] =>
+  keys.map((agentKey) => ({ agentKey, status: 'completed', warnings: [] }))
 
 export default function App() {
   // ---- 会话 ----
-  const [sessions, setSessions] = useState<ConversationSession[]>(MOCK_SESSIONS)
-  // 在线模式会话列表为真实数据（不会命中 mock 回退）；离线时默认展示首个 mock 会话
+  const [sessions, setSessions] = useState<ConversationSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const mockFallback = sessions.find((s) => s.sessionId === MOCK_SESSIONS[0]?.sessionId) ?? null
-  const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? mockFallback
+  const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? null
 
   // ---- 摘要 / 黄金摘要 / 评测（按会话隔离）----
-  const [summariesBySession, setSummariesBySession] = useState<Record<string, SummaryResult[]>>({
-    's-001': [buildMockSummaries('agent-workflow', 1), buildMockSummaries('agent-workflow', 2), buildMockSummaries('single-model', 3)]
-  })
-  const [activeVersionBySession, setActiveVersionBySession] = useState<Record<string, number>>({ 's-001': 2 })
-  const [goldenBySession, setGoldenBySession] = useState<Record<string, GoldenSummary | null>>({ 's-001': MOCK_GOLDEN })
-  const [evalBySession, setEvalBySession] = useState<Record<string, EvaluationRecord[]>>({ 's-001': MOCK_EVALUATION_HISTORY })
-  // 群组成员与组织关系（按会话隔离）：在线为后端真实数据（V4.4），离线回退 mock
+  const [summariesBySession, setSummariesBySession] = useState<Record<string, SummaryResult[]>>({})
+  const [activeVersionBySession, setActiveVersionBySession] = useState<Record<string, number>>({})
+  const [goldenBySession, setGoldenBySession] = useState<Record<string, GoldenSummary | null>>({})
+  const [evalBySession, setEvalBySession] = useState<Record<string, EvaluationRecord[]>>({})
   const [membersBySession, setMembersBySession] = useState<Record<string, UserProfile[]>>({})
   const [relationsBySession, setRelationsBySession] = useState<Record<string, OrganizationRelation[]>>({})
 
@@ -176,10 +116,6 @@ export default function App() {
   const [lastRunSecondsBySession, setLastRunSecondsBySession] = useState<Record<string, Partial<Record<AnalysisMode, number>>>>({})
 
   // 通过 ref 读取最新状态，避免在 setState updater 中嵌套调用 setState（StrictMode 下会重复执行）
-  const summariesRef = useRef(summariesBySession)
-  summariesRef.current = summariesBySession
-  const goldenRef = useRef(goldenBySession)
-  goldenRef.current = goldenBySession
   const runRef = useRef(run)
   runRef.current = run
   
@@ -193,7 +129,7 @@ export default function App() {
 
   // ---- 模型设置 ----
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [{ profiles, defaultProfileId }, setModelSettings] = useState(loadProfiles)
+  const [{ profiles, defaultProfileId }, setModelSettings] = useState<{ profiles: ModelProfile[]; defaultProfileId: string | null }>({ profiles: [], defaultProfileId: null })
   const [bindings, setBindings] = useState<AgentModelBinding[]>([])
 
   // ---- 导入 ----
@@ -211,16 +147,9 @@ export default function App() {
     window.setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), 2600)
   }, [])
 
-  // ---- 后端连接与双数据源 ----
-  // 启动探测后端：在线时数据来自 REST API；离线时静默回退本地 mock，原型行为不变
+  // ---- 后端连接：业务数据的唯一数据源 ----
   const [backendOnline, setBackendOnline] = useState(false)
   const backendOnlineRef = useRef(false)
-
-  // 配置持久化（应用重启后恢复，设计文档验收 18）；后端在线时配置以后端为准，不回写本地
-  useEffect(() => {
-    if (backendOnlineRef.current) return
-    localStorage.setItem('im-summary-model-settings', JSON.stringify({ profiles, defaultProfileId }))
-  }, [profiles, defaultProfileId])
 
   // 启动探测：后端可达时切换为真实数据源，加载会话列表与模型配置
   useEffect(() => {
@@ -231,8 +160,9 @@ export default function App() {
       backendOnlineRef.current = online
       setBackendOnline(online)
       if (!online) {
-        // 离线回退：默认选中首个 mock 会话，保持原型交互不变
-        setActiveSessionId(MOCK_SESSIONS[0]?.sessionId ?? null)
+        setSessions([])
+        setActiveSessionId(null)
+        toast('后端未连接，请启动服务后刷新', 'warn')
         return
       }
       try {
@@ -280,10 +210,8 @@ export default function App() {
   // 从后端加载指定会话的详情 / 组织图 / 黄金摘要 / 摘要 / 评测历史（失败项保留当前数据并 Toast 提示）
   const refreshSessionFromBackend = useCallback(
     async (sessionId: string) => {
-      let targetUserId: string | null = null
       try {
         const detail = await getSessionDetail(sessionId)
-        targetUserId = detail.targetUserId
         const msgs = detail.messages ?? []
         setImportedMessages((m) => ({ ...m, [sessionId]: mapRawMessages(msgs, detail.users ?? []) }))
         // 列表接口无时间段统计：由消息时间戳计算回填会话条目（V4.4）
@@ -295,9 +223,9 @@ export default function App() {
         toast(`会话详情加载失败：${errorMessageOf(e)}`, 'error')
       }
       try {
-        // 群组成员与组织关系改用真实数据（V4.4）；targetUserId 仅用于组织图居中，不标识“当前用户”
+        // 群组成员与组织关系使用真实数据，不建立账户个人视角。
         const graph = await getOrganization(sessionId)
-        const { members, relations } = mapOrganization(graph, targetUserId)
+        const { members, relations } = mapOrganization(graph)
         setMembersBySession((m) => ({ ...m, [sessionId]: members }))
         setRelationsBySession((m) => ({ ...m, [sessionId]: relations }))
       } catch {
@@ -387,93 +315,7 @@ export default function App() {
       ? '默认配置连接测试失败，请在模型设置中检查'
       : null
 
-  // ---- Run 模拟 ----
-  const finishRun = useCallback(
-    (sessionId: string, runMode: AnalysisMode) => {
-      recordLastRunSeconds(sessionId, runMode)
-      setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'completed' } : s)))
-      const version = (summariesRef.current[sessionId] ?? []).reduce((max, s) => Math.max(max, s.version), 0) + 1
-      const summary = buildMockSummaries(runMode, version)
-      setActiveVersionBySession((av) => ({ ...av, [sessionId]: version }))
-      setSummariesBySession((map) => ({ ...map, [sessionId]: [...(map[sessionId] ?? []), summary] }))
-      // 有黄金摘要时自动生成一条评测记录（原型模拟指标）
-      const golden = goldenRef.current[sessionId]
-      if (golden) {
-        const base = runMode === 'agent-workflow' ? 0.9 : 0.72
-        const jitter = () => Math.round((Math.random() * 0.06 - 0.02) * 100) / 100
-        const record: EvaluationRecord = {
-          evaluationId: `ev-${Date.now()}`,
-          mode: runMode,
-          summaryVersion: version,
-          goldenVersion: golden.goldenVersion,
-          metrics: {
-            accuracy: Math.min(0.99, base + jitter()),
-            keyInformationOmissionRate: Math.max(0.01, (runMode === 'agent-workflow' ? 0.06 : 0.18) - jitter()),
-            rougeL: Math.min(0.95, base - 0.08 + jitter()),
-            // 原型模拟综合质量评分（0-100）：与准确率基线线性相关并叠加抖动
-            llmScore: Math.min(99, Math.round(base * 100 - 4 + Math.random() * 8)),
-            importantMessagePrecision: Math.min(0.99, base - 0.02 + jitter()),
-            importantMessageRecall: Math.min(0.99, base - 0.05 + jitter())
-          },
-          evaluatedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-          outdated: false
-        }
-        setEvalBySession((em) => ({ ...em, [sessionId]: [record, ...(em[sessionId] ?? [])] }))
-      }
-      setRun((r) => (r ? { ...r, done: true, progress: 100 } : r))
-      toast('分析完成，摘要与评测已更新')
-    },
-    [toast]
-  )
-
-  const startRun = useCallback(
-    (sessionId: string, runMode: AnalysisMode) => {
-      clearTimers()
-      const startedAt = Date.now()
-      setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'analyzing' } : s)))
-      setRun({ sessionId, mode: runMode, startedAt, elapsed: 0, progress: 0, steps: waitingSteps(), done: false })
-
-      // 已进行时间计时（§6.4：从 Run 启动时间累计，不显示预计剩余时间）
-      const tick = window.setInterval(() => {
-        setRun((r) => (r && !r.done ? { ...r, elapsed: Math.floor((Date.now() - r.startedAt) / 1000) } : r))
-      }, 500)
-      timersRef.current.push(tick)
-
-      if (runMode === 'agent-workflow') {
-        AGENT_PLAN.forEach(({ key, start, duration }) => {
-          timersRef.current.push(
-            window.setTimeout(() => {
-              setRun((r) => (r ? { ...r, steps: r.steps.map((s) => (s.agentKey === key ? { ...s, status: 'running' } : s)) } : r))
-            }, start)
-          )
-          timersRef.current.push(
-            window.setTimeout(() => {
-              setRun((r) =>
-                r
-                  ? {
-                      ...r,
-                      steps: r.steps.map((s) => (s.agentKey === key ? { ...s, status: 'completed', elapsedMs: duration } : s)),
-                      progress: Math.min(99, Math.round(((start + duration) / AGENT_TOTAL) * 100))
-                    }
-                  : r
-              )
-            }, start + duration)
-          )
-        })
-        timersRef.current.push(window.setTimeout(() => finishRun(sessionId, runMode), AGENT_TOTAL + 200))
-      } else {
-        // 基础模式：双模型并行进度
-        const progressTick = window.setInterval(() => {
-          setRun((r) => (r && !r.done ? { ...r, progress: Math.min(96, r.progress + 4) } : r))
-        }, 100)
-        timersRef.current.push(progressTick)
-        timersRef.current.push(window.setTimeout(() => finishRun(sessionId, runMode), SINGLE_TOTAL))
-      }
-    },
-    [finishRun]
-  )
-
-  // ---- Run（后端数据源）：API 启动 + 轮询状态，进度与各 Agent 状态由后端给出，前端只展示 ----
+  // ---- Run：API 启动 + 轮询状态，进度与 Agent 状态由后端给出 ----
   const finishRunBackend = useCallback(
     async (sessionId: string, status: RunStatusView) => {
       const failed = status.status === 'failed' || status.status === 'cancelled'
@@ -502,7 +344,8 @@ export default function App() {
       clearTimers()
       const startedAt = Date.now()
       setSessions((ss) => ss.map((s) => (s.sessionId === sessionId ? { ...s, status: 'analyzing' } : s)))
-      setRun({ sessionId, mode: runMode, startedAt, elapsed: 0, progress: 0, steps: waitingSteps(), done: false })
+      const planKeys = keysForMode(runMode)
+      setRun({ sessionId, mode: runMode, startedAt, elapsed: 0, progress: 0, steps: waitingSteps(planKeys), done: false })
 
       // 已进行时间计时（§6.4：从 Run 启动时间累计，不显示预计剩余时间）
       const tick = window.setInterval(() => {
@@ -522,7 +365,6 @@ export default function App() {
       }
 
       // 轮询运行状态（WebSocket 的 HTTP 兜底；运行状态持久化在后端，断线可恢复）
-      const planKeys = AGENT_PLAN.map((p) => p.key)
       // 重入保护：上一轮请求在途时跳过，避免乱序进度覆盖与终态重复处理（重复触发评测）
       let polling = false
       let finished = false
@@ -554,34 +396,14 @@ export default function App() {
 
   const handleStartAnalysis = () => {
     if (!activeSession || !canAnalyze || run && !run.done && run.sessionId === activeSessionId) return
-    // 后端在线：模型配置校验由后端在启动时完成，前端不做本地模拟校验
-    if (backendOnline) {
-      void startRunBackend(activeSession.sessionId, mode)
+    if (!backendOnline) {
+      toast('后端未连接，无法开始分析', 'error')
       return
     }
-    if (defaultProfile!.connectionStatus === 'untested') {
-      // 已保存、未测试：启动时先轻量校验（§11.6）
-      toast('默认配置未测试，正在轻量校验…')
-      updateProfile({ ...defaultProfile!, connectionStatus: 'testing' })
-      window.setTimeout(() => {
-        updateProfile({
-          ...defaultProfile!,
-          connectionStatus: 'available',
-          thinkingModeSupported: detectThinking(defaultProfile!),
-          lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false })
-        })
-        toast('校验通过，开始分析')
-        startRun(activeSession.sessionId, mode)
-      }, 900)
-      return
-    }
-    startRun(activeSession.sessionId, mode)
+    void startRunBackend(activeSession.sessionId, mode)
   }
 
   // ---- 模型设置操作 ----
-  const detectThinking = (p: ModelProfile): boolean =>
-    p.providerType === 'anthropic' || /claude|gpt-5|o1|o3|qwen3|deepseek-r1|thinking/i.test(p.modelName)
-
   const updateProfile = (p: ModelProfile) => {
     setModelSettings((cur) => {
       const exists = cur.profiles.some((x) => x.profileId === p.profileId)
@@ -595,9 +417,12 @@ export default function App() {
   const handleTestConnection = (profileId: string) => {
     const target = profiles.find((p) => p.profileId === profileId)
     if (!target) return
+    if (!backendOnline) {
+      toast('后端未连接，无法测试模型', 'error')
+      return
+    }
     updateProfile({ ...target, connectionStatus: 'testing', lastError: undefined })
-    if (backendOnline) {
-      testModelProfile({ profileId })
+    testModelProfile({ profileId })
         .then((view) => {
           if ('profileId' in view) {
             updateProfile({ ...mapModelProfile(view), thinkingModeEnabled: target.thinkingModeEnabled, apiKey: target.apiKey })
@@ -622,17 +447,6 @@ export default function App() {
           })
           toast('连接测试失败', 'error')
         })
-      return
-    }
-    window.setTimeout(() => {
-      if (/invalid|localhost:0/.test(target.baseUrl)) {
-        updateProfile({ ...target, connectionStatus: 'failed', thinkingModeSupported: null, lastError: '连接失败：无法解析目标地址', lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false }) })
-        toast('连接测试失败', 'error')
-      } else {
-        updateProfile({ ...target, connectionStatus: 'available', thinkingModeSupported: detectThinking(target), lastTestedAt: new Date().toLocaleString('zh-CN', { hour12: false }) })
-        toast('连接测试通过')
-      }
-    }, 1000)
   }
 
   // ---- 模型配置（后端数据源）：档案增删改 / 测试 / 绑定均走 API，本地状态跟随响应更新 ----
@@ -656,8 +470,7 @@ export default function App() {
 
   const handleSaveProfile = (p: ModelProfile) => {
     if (!backendOnline) {
-      // 离线模式剥离明文 Key：明文仅在线回显与提交后端，不写 localStorage
-      updateProfile({ ...p, apiKey: undefined })
+      toast('后端未连接，无法保存配置', 'error')
       return
     }
     saveModelProfile({
@@ -698,7 +511,7 @@ export default function App() {
         defaultProfileId: cur.defaultProfileId === profileId ? null : cur.defaultProfileId
       }))
     if (!backendOnline) {
-      removeLocally()
+      toast('后端未连接，无法删除配置', 'error')
       return
     }
     deleteModelProfile(profileId)
@@ -708,7 +521,7 @@ export default function App() {
 
   const handleSetDefaultProfile = (profileId: string) => {
     if (!backendOnline) {
-      setModelSettings((cur) => ({ ...cur, defaultProfileId: profileId }))
+      toast('后端未连接，无法保存默认配置', 'error')
       return
     }
     saveModelBindings(buildBindingsRequest(profileId, bindings))
@@ -719,32 +532,36 @@ export default function App() {
   const handleToggleThinking = (profileId: string, enabled: boolean) => {
     const p = profiles.find((x) => x.profileId === profileId)
     if (!p) return
+    if (!backendOnline) {
+      toast('后端未连接，无法保存思考模式', 'error')
+      return
+    }
     updateProfile({ ...p, thinkingModeEnabled: enabled })
-    if (backendOnline) {
-      const nextProfiles = profiles.map((x) => (x.profileId === profileId ? { ...x, thinkingModeEnabled: enabled } : x))
-      saveModelBindings({
+    const nextProfiles = profiles.map((x) => (x.profileId === profileId ? { ...x, thinkingModeEnabled: enabled } : x))
+    saveModelBindings({
         defaultProfileId,
         thinkingEnabled: nextProfiles.some((x) => x.thinkingModeEnabled),
         overrides: Object.fromEntries(
           bindings.filter((b) => b.profileId).map((b) => [agentKeyToBackend(b.agentKey), b.profileId as string])
         )
-      }).catch((e) => toast(`保存思考模式失败：${errorMessageOf(e)}`, 'error'))
-    }
+    }).catch((e) => toast(`保存思考模式失败：${errorMessageOf(e)}`, 'error'))
   }
 
   const handleBindingChange = (agentKey: AgentKey, profileId: string | undefined) => {
+    if (!backendOnline) {
+      toast('后端未连接，无法保存模型绑定', 'error')
+      return
+    }
     const next = profileId
       ? [...bindings.filter((b) => b.agentKey !== agentKey), { agentKey, profileId }]
       : bindings.filter((b) => b.agentKey !== agentKey)
     setBindings(next)
-    if (backendOnline) {
-      saveModelBindings(buildBindingsRequest(defaultProfileId, next)).catch((e) =>
-        toast(`保存模型绑定失败：${errorMessageOf(e)}`, 'error')
-      )
-    }
+    saveModelBindings(buildBindingsRequest(defaultProfileId, next)).catch((e) =>
+      toast(`保存模型绑定失败：${errorMessageOf(e)}`, 'error')
+    )
   }
 
-  // ---- 会话删除（V4.4）：在线走后端级联删除，离线仅移除本地状态；同步清理按会话隔离的全部缓存 ----
+  // ---- 会话删除：后端级联删除，再清理前端缓存 ----
   const handleDeleteSession = useCallback(
     (sessionId: string) => {
       const strip = <T,>(m: Record<string, T>): Record<string, T> =>
@@ -764,7 +581,7 @@ export default function App() {
         toast('会话已删除')
       }
       if (!backendOnline) {
-        removeLocally()
+        toast('后端未连接，无法删除会话', 'error')
         return
       }
       deleteSession(sessionId)
@@ -773,60 +590,6 @@ export default function App() {
     },
     [sessions, activeSessionId, backendOnline, toast]
   )
-
-  // ---- 导入解析（原型：本地解析 JSON / 文本，无后端预检）----
-  const parseImportFile = async (name: string, readText: () => Promise<string>): Promise<ImportFileItem> => {
-    const item: ImportFileItem = { id: `imp-${Date.now()}-${Math.random()}`, name, status: 'checking', warnings: [] }
-    try {
-      const text = await readText()
-      if (name.endsWith('.json')) {
-        const data = JSON.parse(text)
-        if (!data.groupName || !Array.isArray(data.messages)) {
-          return { ...item, status: 'failed', error: 'JSON 缺少必需字段 groupName / messages' }
-        }
-        const messages: ChatMessage[] = data.messages.slice(0, 500).map((m: Partial<ChatMessage>, i: number) => ({
-          messageId: m.messageId ?? `imp-m-${i}`,
-          senderId: m.senderId ?? 'u-unknown',
-          senderName: m.senderName ?? '未知成员',
-          senderRole: m.senderRole ?? '成员',
-          sentAt: m.sentAt ?? '--:--',
-          content: String(m.content ?? ''),
-          mentions: m.mentions ?? []
-        }))
-        return {
-          ...item,
-          status: 'ok',
-          preview: {
-            groupName: data.groupName,
-            messageCount: data.messages.length,
-            memberCount: data.members?.length ?? new Set(messages.map((m) => m.senderId)).size,
-            profileCount: data.profiles?.length ?? 0,
-            relationCount: data.relations?.length ?? 0,
-            hasGoldenSummary: typeof data.goldenSummary === 'string' && data.goldenSummary.length > 0
-          },
-          goldenMarkdown: typeof data.goldenSummary === 'string' ? data.goldenSummary : undefined,
-          messages
-        }
-      }
-      // txt / csv：按行解析，角色与组织上下文缺失 → 警告态
-      const lines = text.split(/\r?\n/).filter((l) => l.trim())
-      return {
-        ...item,
-        status: 'warning',
-        warnings: ['纯文本导入将按行解析消息', '成员角色与组织关系数据缺失，角色分组能力降级'],
-        preview: {
-          groupName: name.replace(/\.\w+$/, ''),
-          messageCount: lines.length,
-          memberCount: 0,
-          profileCount: 0,
-          relationCount: 0,
-          hasGoldenSummary: false
-        }
-      }
-    } catch (e) {
-      return { ...item, status: 'failed', error: `文件解析失败：${e instanceof Error ? e.message : String(e)}` }
-    }
-  }
 
   // ---- 导入预检查（后端数据源）：上传后端校验，校验问题映射为文件状态 ----
   const validateImportFile = async (f: { name: string; path?: string; file?: File }, id: string): Promise<ImportFileItem> => {
@@ -876,78 +639,46 @@ export default function App() {
   }
 
   const handleImportFiles = async (files: { name: string; path?: string; file?: File }[]) => {
+    if (!backendOnline) {
+      toast('后端未连接，无法导入会话', 'error')
+      return
+    }
     const items: ImportFileItem[] = files.map((f) => ({ id: `imp-${Date.now()}-${Math.random()}`, name: f.name, status: 'checking', warnings: [] }))
     setImportFiles((cur) => [...(cur ?? []), ...items])
     const parsed = await Promise.all(
-      files.map((f, i) =>
-        backendOnline
-          ? validateImportFile(f, items[i].id)
-          : parseImportFile(f.name, async () => {
-              if (f.file) return f.file.text()
-              if (f.path && window.desktopApi) return window.desktopApi.readTextFile(f.path)
-              throw new Error('无法读取文件')
-            }).then((item) => ({ ...item, id: items[i].id }))
-      )
+      files.map((f, i) => validateImportFile(f, items[i].id))
     )
-    // 模拟逐文件预检查节奏
     for (const p of parsed) {
-      await new Promise((r) => setTimeout(r, 250))
       setImportFiles((cur) => (cur ?? []).map((c) => (c.id === p.id ? p : c)))
     }
   }
 
   const handleConfirmImport = async (files: ImportFileItem[]) => {
-    if (backendOnline) {
-      const confirmedIds: string[] = []
-      for (const f of files) {
-        if (!f.importId) continue
-        try {
-          const res = await confirmImportApi(f.importId)
-          confirmedIds.push(res.sessionId)
-        } catch (e) {
-          // 批量导入：单文件失败不阻断其他文件（§4.1）
-          toast(`导入失败：${f.name}，${errorMessageOf(e)}`, 'error')
-        }
-      }
-      setImportFiles(null)
-      if (confirmedIds.length > 0) {
-        try {
-          const list = await listSessionsApi()
-          setSessions(list.map(mapSessionListItem))
-          // 批量导入完成后默认选中第一个成功项（§4.1）
-          setActiveSessionId(confirmedIds[0])
-        } catch (e) {
-          toast(`刷新会话列表失败：${errorMessageOf(e)}`, 'error')
-        }
-        toast(`成功导入 ${confirmedIds.length} 个会话`)
-      }
+    if (!backendOnline) {
+      toast('后端未连接，无法确认导入', 'error')
       return
     }
-    const now = new Date().toLocaleString('zh-CN', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-    const newSessions: ConversationSession[] = files.map((f, i) => ({
-      sessionId: `s-imp-${Date.now()}-${i}`,
-      groupName: f.preview!.groupName,
-      importedAt: now,
-      messageCount: f.preview!.messageCount,
-      memberCount: f.preview!.memberCount || MOCK_MEMBERS.length,
-      timeRange: '—',
-      status: 'pending',
-      hasGoldenSummary: f.preview!.hasGoldenSummary
-    }))
-    setSessions((ss) => [...newSessions, ...ss])
-    files.forEach((f, i) => {
-      const sid = newSessions[i].sessionId
-      if (f.preview!.hasGoldenSummary && f.goldenMarkdown) {
-        setGoldenBySession((m) => ({ ...m, [sid]: { goldenVersion: 1, markdown: f.goldenMarkdown! } }))
+    const confirmedIds: string[] = []
+    for (const f of files) {
+      if (!f.importId) continue
+      try {
+        const res = await confirmImportApi(f.importId)
+        confirmedIds.push(res.sessionId)
+      } catch (e) {
+        toast(`导入失败：${f.name}，${errorMessageOf(e)}`, 'error')
       }
-      if (f.messages && f.messages.length > 0) {
-        setImportedMessages((m) => ({ ...m, [sid]: f.messages! }))
-      }
-    })
+    }
     setImportFiles(null)
-    // 批量导入完成后默认选中第一个成功项（§4.1）
-    setActiveSessionId(newSessions[0].sessionId)
-    toast(`成功导入 ${newSessions.length} 个会话`)
+    if (confirmedIds.length > 0) {
+      try {
+        const list = await listSessionsApi()
+        setSessions(list.map(mapSessionListItem))
+        setActiveSessionId(confirmedIds[0])
+      } catch (e) {
+        toast(`刷新会话列表失败：${errorMessageOf(e)}`, 'error')
+      }
+      toast(`成功导入 ${confirmedIds.length} 个会话`)
+    }
   }
 
   const [importedMessages, setImportedMessages] = useState<Record<string, ChatMessage[]>>({})
@@ -957,10 +688,9 @@ export default function App() {
   const activeVersion = activeSessionId ? activeVersionBySession[activeSessionId] ?? null : null
   const golden = activeSessionId ? goldenBySession[activeSessionId] ?? null : null
   const evalRecords = activeSessionId ? evalBySession[activeSessionId] ?? [] : []
-  // 在线模式不使用 mock 回退：未加载完成时展示空视图（V4.4）
-  const messages = activeSessionId ? importedMessages[activeSessionId] ?? (backendOnline ? [] : MOCK_MESSAGES) : []
-  const members = activeSessionId ? membersBySession[activeSessionId] ?? (backendOnline ? [] : MOCK_MEMBERS) : []
-  const relations = activeSessionId ? relationsBySession[activeSessionId] ?? (backendOnline ? [] : MOCK_RELATIONS) : []
+  const messages = activeSessionId ? importedMessages[activeSessionId] ?? [] : []
+  const members = activeSessionId ? membersBySession[activeSessionId] ?? [] : []
+  const relations = activeSessionId ? relationsBySession[activeSessionId] ?? [] : []
   const isRunningHere = run !== null && !run.done && run.sessionId === activeSessionId
   const analyzing = run !== null && !run.done
 
@@ -1020,11 +750,11 @@ export default function App() {
             ) : (
               <SingleModelProgressPanel
                 running={isRunningHere}
-                done={
-                  runForView && runForView.mode === 'single-model'
-                    ? runForView.done
-                    : summaries.some((s) => s.mode === 'single-model')
-                }
+                steps={runForView && runForView.mode === 'single-model'
+                  ? runForView.steps
+                  : summaries.some((s) => s.mode === 'single-model')
+                    ? completedSteps(BASELINE_AGENT_KEYS)
+                    : waitingSteps(BASELINE_AGENT_KEYS)}
               />
             )}
 
@@ -1074,7 +804,6 @@ export default function App() {
         ) : (
           <main className="main-workspace">
             <div className="panel workspace-empty">
-              <div className="big">🗂️</div>
               <div>尚未导入离线会话</div>
               <div style={{ fontSize: 12 }}>点击左侧"导入离线会话"或拖拽文件到左下角区域开始</div>
             </div>

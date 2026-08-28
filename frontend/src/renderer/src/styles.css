@@ -98,6 +98,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-tag.analyzing { background: var(--primary-light); color: var(--primary); }
 .status-tag.completed { background: var(--green-bg); color: var(--green); }
 .status-tag.failed { background: var(--red-bg); color: var(--red); }
+.status-tag.warning { background: var(--yellow-bg); color: var(--yellow); }
 /* 原型布局：导入入口固定底部 */
 .sidebar-footer { padding: 10px 12px 12px; border-top: 1px solid var(--border); }
 .import-btn { width: 100%; padding: 8px 0; font-size: 13px; }
@@ -130,19 +131,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .agent-avatar { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid #e6e9ed; }
 /* 状态动画只表达系统状态，不用夸张跳跃打断阅读 */
 .mascot { display: block; width: 58px; height: 58px; object-fit: contain; transform-origin: 50% 72%; }
+.mascot-sprite { width: 48px; height: 64px; background-repeat: no-repeat; background-size: 400% 200%; }
+.mascot-context-event { background-position: 0 0; }
+.mascot-state { background-position: 33.333% 0; }
+.mascot-summary { background-position: 66.666% 0; }
+.mascot-importance-extractor { background-position: 100% 0; }
+.mascot-factual-auditor { background-position: 0 100%; }
+.mascot-importance-auditor { background-position: 33.333% 100%; }
+.mascot-baseline-summary { background-position: 66.666% 100%; }
+.mascot-baseline-importance { background-position: 100% 100%; }
 .agent-node.waiting .mascot { filter: saturate(.55); opacity: .72; }
 .agent-node.running .agent-avatar { border-color: #83a9f5; box-shadow: 0 0 0 4px rgba(40,100,220,.09), 0 8px 24px rgba(40,100,220,.16); animation: agentGlow 1.8s ease-in-out infinite; }
 .agent-node.running .mascot { animation: mascotFloat 1.8s ease-in-out infinite; }
+.agent-node.revising .agent-avatar { border-color: #7aa6f4; box-shadow: 0 0 0 4px rgba(40,100,220,.12); }
+.agent-node.revising .mascot { animation: revisionNudge 1.05s ease-in-out infinite; }
 .agent-node.completed .mascot { animation: mascotSettle .42s ease-out; }
 .agent-node.failed .mascot { filter: saturate(.55) drop-shadow(0 3px 8px rgba(224,76,76,.35)); }
 @keyframes mascotFloat { 0%,100% { transform: translateY(1px); } 50% { transform: translateY(-3px); } }
 @keyframes mascotSettle { 0% { transform: scale(.92); opacity: .65; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes revisionNudge { 0%,100% { transform: translateX(0) rotate(0); } 35% { transform: translateX(-2px) rotate(-2deg); } 70% { transform: translateX(2px) rotate(2deg); } }
 @keyframes agentGlow { 0%,100% { box-shadow: 0 0 0 4px rgba(40,100,220,.07), 0 8px 24px rgba(40,100,220,.12); } 50% { box-shadow: 0 0 0 6px rgba(40,100,220,.12), 0 10px 28px rgba(40,100,220,.2); } }
-.agent-badge { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
-.agent-badge.completed { background: var(--green); }
-.agent-badge.failed { background: var(--red); }
-.agent-badge.warning { background: var(--yellow); }
-.agent-badge.revising { background: var(--primary); }
 .agent-name { margin-top: 8px; font-size: 12px; font-weight: 650; text-align: center; line-height: 1.25; }
 .agent-short { color: var(--text-3); font-size: 10px; text-align: center; margin-top: 3px; white-space: nowrap; }
 .agent-live-status { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; min-height: 18px; border-radius: 3px; padding: 1px 6px; background: #f3f4f6; color: var(--text-2); font-size: 10.5px; white-space: nowrap; }
@@ -171,31 +179,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .flow-connector.done { border-top-color: var(--green); }
 .flow-connector.done { background: #63c69a; }
 .flow-connector.active { background: linear-gradient(90deg,#dbe2ed 0%,#4782ef 45%,#dbe2ed 100%); background-size: 200% 100%; animation: flowTravel 1.8s linear infinite; }
-.conn-check { position: absolute; left: 50%; top: 0; transform: translate(-50%,-50%); width: 17px; height: 17px; border-radius: 50%; background: var(--green); color: #fff; font-size: 10.5px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #fff; }
 @keyframes flowTravel { to { background-position: -200% 0; } }
 /* 并行组：无边框横排，仅底部阶段标注（原型风格） */
 .parallel-group { display: flex; flex-direction: column; padding: 10px 7px 7px; position: relative; flex-shrink: 0; border: 1px dashed #bfcfe6; border-radius: 8px; background: #f7faff; }
 .parallel-group.audit-group { border-color: #c8d7d1; background: #f7fbf9; }
-.parallel-row { display: flex; align-items: center; gap: 0; }
+.parallel-row { display: flex; align-items: center; gap: 12px; }
 .parallel-caption { position: absolute; top: -8px; left: 12px; transform: none; font-size: 9.5px; color: #718099; white-space: nowrap; background: inherit; padding: 0 5px; }
 .parallel-caption.green { color: var(--green); font-weight: 600; }
 .parallel-caption.blue { color: var(--primary); font-weight: 600; }
-.workflow-caption { text-align: center; color: var(--text-3); font-size: 11px; padding-bottom: 6px; }
-.agent-detail-pop { margin: 4px 16px 12px; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; padding: 10px 14px; font-size: 12.5px; }
-.agent-detail-pop .row { display: flex; gap: 8px; margin: 3px 0; }
-.agent-detail-pop .k { color: var(--text-3); width: 72px; flex-shrink: 0; }
-.final-flag { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-bottom: 34px; }
-.final-flag .flag { width: 34px; height: 34px; border-radius: 50%; background: #eef1f6; display: flex; align-items: center; justify-content: center; font-size: 15px; }
-.final-flag.done .flag { background: var(--green-bg); }
-.final-flag span { font-size: 10.5px; color: var(--text-3); margin-top: 4px; }
 
 /* 单模型进度 SingleModelProgressPanel */
 .single-progress { padding: 18px 20px 20px; display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 28px; flex-wrap: nowrap; }
 .single-agent-node { width: 104px; }
 .single-agent-avatar { background: linear-gradient(145deg,#f5f9ff,#eef3fa); }
-.single-progress .step { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
-.progress-track { width: 320px; height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
-.progress-bar { height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s; }
 
 /* 原始群聊 RawConversationPanel */
 .chat-meta { color: var(--text-3); font-size: 12px; display: flex; gap: 14px; }
@@ -247,10 +243,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .icon-btn:hover { border-color: var(--primary); color: var(--primary); }
 .summary-body { max-height: 420px; overflow-y: auto; font-size: 13px; line-height: 1.72; color: #303743; padding-right: 4px; }
 .summary-empty { color: var(--text-3); text-align: center; padding: 44px 0; font-size: 12.5px; }
-.summary-empty .big { font-size: 26px; margin-bottom: 8px; }
 .generating { display: flex; align-items: center; gap: 8px; color: var(--primary); justify-content: center; padding: 44px 0; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--primary-light); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.quality-proof { margin: 0 0 12px; border: 1px solid #d9e3f4; border-radius: 8px; background: #f8faff; font-size: 11.5px; }
+.quality-proof > summary { cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 8px 10px; color: #334a6f; font-weight: 650; }
+.quality-proof > summary::marker { color: var(--primary); }
+.quality-stats { color: var(--text-2); font-weight: 400; }
+.quality-proof-body { border-top: 1px solid #e4eaf4; padding: 8px 10px; display: grid; gap: 5px; }
+.quality-proof-row { display: grid; grid-template-columns: 108px 1fr; gap: 8px; }
+.quality-proof-row b { font-size: 11px; }
+.quality-proof-body ul { margin: 4px 0 0; padding-left: 18px; }
+.audit-severity { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; }
+.audit-severity.error { color: var(--red); background: var(--red-bg); }
+.audit-severity.warning { color: var(--yellow); background: var(--yellow-bg); }
+.baseline-binding-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.baseline-binding-card { border: 1px solid var(--border); border-radius: 8px; background: #fafbfc; padding: 10px; display: grid; gap: 6px; }
+.baseline-binding-card b { font-size: 12.5px; }
+.baseline-binding-card span { color: var(--text-3); font-size: 11px; min-height: 32px; }
+.baseline-binding-card select { width: 100%; }
 
 /* Markdown 渲染 */
 .md h1 { font-size: 17px; margin: 5px 0 10px; letter-spacing: -.2px; }
@@ -272,7 +283,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .evidence-chip:hover { background: #d8e4fd; }
 
 /* 评测 EvaluationPanel */
-.metrics-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 14px 16px 6px; }
+.metrics-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 14px 16px 6px; }
 .metric-card { border: none; border-right: 1px solid var(--border); border-radius: 0; padding: 8px 12px; text-align: center; }
 .metric-card:last-child { border-right: 0; }
 .metric-card .v { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; color: #25344d; }

@@ -70,7 +70,7 @@ export function confirmImport(importId: string): Promise<ImportConfirmResponse> 
 
 // ---------- 分析运行 ----------
 
-export function startRun(sessionId: string, body: { mode: 'agent-workflow' | 'single-model'; targetUserId?: string }): Promise<StartRunResponse> {
+export function startRun(sessionId: string, body: { mode: 'agent-workflow' | 'single-model' }): Promise<StartRunResponse> {
   return httpJson(`/api/sessions/${encodeURIComponent(sessionId)}/runs`, { method: 'POST', json: body })
 }
 

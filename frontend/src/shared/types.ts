@@ -35,7 +35,6 @@ export interface UserProfile {
   role: string
   employeeId: string
   roleCategory: RoleCategory
-  isTargetUser?: boolean
 }
 
 export interface OrganizationRelation {
@@ -73,13 +72,35 @@ export interface AgentRun {
   mode: AnalysisMode
   startedAt: number
   elapsedSeconds: number
-  /** 0-100，正式环境来自后端 overallProgress，前端不自行推算（此处为原型模拟） */
+  /** 0-100，来自后端 overallProgress，前端不自行推算。 */
   overallProgress: number
 }
 
 export interface EvidenceLink {
   summaryPoint: string
   messageIds: string[]
+}
+
+export interface WorkflowEvent {
+  eventId: string
+  content: string
+  state?: string
+  evidenceMessageIds: string[]
+}
+
+export interface AuditIssue {
+  type: string
+  severity: 'error' | 'warning' | string
+  description: string
+  fieldPath?: string
+  messageId?: string
+  eventId?: string
+  suggestion?: string
+}
+
+export interface AuditReport {
+  passed: boolean
+  issues: AuditIssue[]
 }
 
 export interface SummaryResult {
@@ -90,6 +111,12 @@ export interface SummaryResult {
   markdown: string
   generatedAt: string
   evidenceLinks: EvidenceLink[]
+  /** 基础模式为 not_audited；团队模式为 passed / warning */
+  auditStatus: string
+  /** 团队模式的可追溯中间产物，基础模式为空 */
+  eventLedger: WorkflowEvent[]
+  summaryAudit: AuditReport | null
+  importanceAudit: AuditReport | null
 }
 
 export interface GoldenSummary {

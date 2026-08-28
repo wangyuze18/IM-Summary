@@ -3,7 +3,7 @@
 // 连接状态 / 思考模式状态 / 思考模式开关 / Agent 与模型绑定
 import { useEffect, useRef, useState } from 'react'
 import type { AgentKey, AgentModelBinding, ConnectionStatus, ModelProfile, ProviderType } from '../../../shared/types'
-import { AGENT_DEFS } from '../mockData'
+import { AGENT_DEFS } from '../agentDefinitions'
 
 interface Props {
   profiles: ModelProfile[]
@@ -321,8 +321,11 @@ export default function LocalModelSettingsDialog(props: Props) {
           <div className="settings-section">团队模式模型</div>
           <details className="binding-details">
             <summary>按阶段指定模型</summary>
+            <div className="settings-note" style={{ marginTop: 8 }}>
+              重要消息模型由两种模式共用。
+            </div>
             <div style={{ marginTop: 6 }}>
-              {AGENT_DEFS.map((def) => {
+              {AGENT_DEFS.filter((def) => def.key !== 'importance-extractor').map((def) => {
                 const binding = bindings.find((b) => b.agentKey === def.key)
                 return (
                   <div className="binding-row" key={def.key}>
@@ -342,10 +345,34 @@ export default function LocalModelSettingsDialog(props: Props) {
             </div>
           </details>
 
-          {/* 基础模式摘要模型与评测判分模型：非团队阶段，可单独指定模型档案 */}
+          <div className="settings-section">基础模式</div>
+          <div className="baseline-binding-grid">
+            {([
+              { key: 'single-model', title: '摘要生成', label: '从原始群聊生成摘要' },
+              { key: 'importance-extractor', title: '重要消息', label: '从原始群聊抽取消息' }
+            ] as const).map(({ key, title, label }) => {
+              const binding = bindings.find((b) => b.agentKey === key)
+              return (
+                <div className="baseline-binding-card" key={key}>
+                  <b>{title}</b>
+                  <span>{label}</span>
+                  <select
+                    value={binding?.profileId ?? ''}
+                    onChange={(e) => onBindingChange(key, e.target.value || undefined)}
+                  >
+                    <option value="">继承默认配置</option>
+                    {profiles.map((p) => (
+                      <option key={p.profileId} value={p.profileId}>{p.displayName}</option>
+                    ))}
+                  </select>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 评测判分模型不参与生成，llm_score 只评价摘要。 */}
           {([
-            { key: 'single-model', title: '基础模式摘要模型', label: '与重要消息模型并行生成（baseline）' },
-            { key: 'evaluation-judge', title: '评测判分模型', label: '综合质量评分（LLM Score）判分' }
+            { key: 'evaluation-judge', title: '评测判分模型', label: '摘要准确率、遗漏率与 LLM Score；重要消息另算精确率/召回率' }
           ] as const).map(({ key, title, label }) => {
             const binding = bindings.find((b) => b.agentKey === key)
             return (

@@ -73,19 +73,19 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
                   <div className="cell">群名称<b>{selected.preview.groupName}</b></div>
                   <div className="cell">消息数<b>{selected.preview.messageCount}</b></div>
                   <div className="cell">成员数<b>{selected.preview.memberCount}</b></div>
-                  <div className="cell">画像数<b>{selected.preview.profileCount}</b></div>
+                  <div className="cell">角色数<b>{selected.preview.profileCount}</b></div>
                   <div className="cell">关系数<b>{selected.preview.relationCount}</b></div>
                   <div className="cell">
                     黄金摘要
                     <b style={{ color: selected.preview.hasGoldenSummary ? 'var(--yellow)' : 'var(--text-3)' }}>
-                      {selected.preview.hasGoldenSummary ? '✓ 导入携带' : '未携带'}
+                      {selected.preview.hasGoldenSummary ? '已携带' : '未携带'}
                     </b>
                   </div>
                 </div>
                 {selected.warnings.length > 0 && (
                   <div className="warn-list">
                     {selected.warnings.map((w, i) => (
-                      <div key={i}>⚠ {w}</div>
+                      <div key={i}>提示：{w}</div>
                     ))}
                   </div>
                 )}

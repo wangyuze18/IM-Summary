@@ -22,6 +22,55 @@ const MODE_LABEL: Record<AnalysisMode, string> = {
   'single-model': '基础模式'
 }
 
+function TeamQualityProof({ summary }: { summary: SummaryResult }) {
+  if (summary.mode !== 'agent-workflow') return null
+  const summaryIssues = summary.summaryAudit?.issues ?? []
+  const importanceIssues = summary.importanceAudit?.issues ?? []
+  const evidenceMessages = new Set(summary.eventLedger.flatMap((event) => event.evidenceMessageIds)).size
+  const hasArtifacts = summary.eventLedger.length > 0 || summary.summaryAudit !== null || summary.importanceAudit !== null
+
+  return (
+    <details className="quality-proof">
+      <summary>
+        <span>质量详情</span>
+        {hasArtifacts ? (
+          <span className="quality-stats">
+            {summary.eventLedger.length} 个事件 · {evidenceMessages} 条证据 · 摘要 {summaryIssues.length} 项问题 · 重要消息 {importanceIssues.length} 项问题
+          </span>
+        ) : (
+          <span className="quality-stats">历史版本未保存审核产物</span>
+        )}
+      </summary>
+      {hasArtifacts && (
+        <div className="quality-proof-body">
+          <div className="quality-proof-row">
+            <b>共享证据账本</b>
+            <span>{summary.eventLedger.length} 个原子事件，所有证据可回溯至原始 messageId。</span>
+          </div>
+          <div className="quality-proof-row">
+            <b>摘要事实审核</b>
+            <span>{summary.summaryAudit?.passed ? '已通过' : '未通过'}，{summaryIssues.length} 项留存问题。</span>
+          </div>
+          <div className="quality-proof-row">
+            <b>重要消息审核</b>
+            <span>{summary.importanceAudit?.passed ? '已通过' : '未通过'}，{importanceIssues.length} 项留存问题。</span>
+          </div>
+          {[...summaryIssues, ...importanceIssues].length > 0 && (
+            <ul>
+              {[...summaryIssues, ...importanceIssues].map((issue, index) => (
+                <li key={`${issue.type}-${index}`}>
+                  <span className={`audit-severity ${issue.severity}`}>{issue.severity === 'error' ? '错误' : '警告'}</span>
+                  {issue.description}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </details>
+  )
+}
+
 function FinalSummaryViewer(props: Props) {
   const { groupName, summaries, activeVersion, onSelectVersion, generating, generatingMode, onToast } = props
   const [exportOpen, setExportOpen] = useState(false)
@@ -56,7 +105,6 @@ function FinalSummaryViewer(props: Props) {
         {current && (
           <>
             <span className={`mode-badge ${current.mode}`}>{MODE_LABEL[current.mode]}</span>
-            <span className="status-tag completed">已完成</span>
           </>
         )}
         <span className="spacer" />
@@ -104,15 +152,17 @@ function FinalSummaryViewer(props: Props) {
       {generating ? (
         <div className="generating">
           <span className="spinner" />
-          {generatingMode === 'agent-workflow' ? '团队模式双任务生成与审核中…' : '基础模式双模型并行生成中…'}
+          {generatingMode === 'agent-workflow' ? '团队分析中…' : '生成中…'}
         </div>
       ) : current ? (
-        <div className="summary-body md">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.markdown}</ReactMarkdown>
-        </div>
+        <>
+          <TeamQualityProof summary={current} />
+          <div className="summary-body md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{current.markdown}</ReactMarkdown>
+          </div>
+        </>
       ) : (
         <div className="summary-empty">
-          <div className="big">📝</div>
           尚未生成摘要，点击右上角"开始分析"启动
         </div>
       )}

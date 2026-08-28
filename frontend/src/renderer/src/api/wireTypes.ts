@@ -45,7 +45,6 @@ export interface RawImportUser {
 export interface SessionDetailView {
   sessionId: string
   title: string
-  targetUserId: string | null
   group: unknown
   messages: RawImportMessage[] | null
   users: RawImportUser[] | null
@@ -157,14 +156,21 @@ export interface SummaryView {
   structured: string | null
   /** EvidenceLink[] 的 JSON 字符串，前端需解析 */
   evidenceLinks: string | null
+  /** 团队模式事件账本与两路审核报告（JSON 字符串） */
+  eventLedger: string | null
+  summaryAudit: string | null
+  importanceAudit: string | null
   auditStatus: string | null
   generatedAt: string
 }
 
 /** GET /api/sessions/{id}/summaries 列表项（不含 markdown / structured 全文） */
-export type SummaryListItemView = Omit<SummaryView, 'markdown' | 'structured'> & {
+export type SummaryListItemView = Omit<SummaryView, 'markdown' | 'structured' | 'eventLedger' | 'summaryAudit' | 'importanceAudit'> & {
   markdown?: undefined
   structured?: undefined
+  eventLedger?: undefined
+  summaryAudit?: undefined
+  importanceAudit?: undefined
 }
 
 // ---------- 评测 ----------
