@@ -31,23 +31,31 @@ public class MarkdownRenderer {
 
         JsonNode importantMessages = structured.path("importantMessages");
         if (importantMessages.isArray() && !importantMessages.isEmpty()) {
-            sb.append("### 工作简报\n\n");
-            sb.append("#### 重要消息\n");
+            sb.append("### 重要事项\n");
             java.util.LinkedHashMap<String, java.util.List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
             for (JsonNode message : importantMessages) {
                 JsonNode stakeholders = message.path("stakeholders");
+                java.util.LinkedHashSet<String> employees = new java.util.LinkedHashSet<>();
                 if (stakeholders.isArray() && !stakeholders.isEmpty()) {
                     for (JsonNode stakeholder : stakeholders) {
-                        grouped.computeIfAbsent(stakeholder.asText("未明确"), k -> new java.util.ArrayList<>()).add(message);
+                        String employee = employeeName(stakeholder.asText(""));
+                        if (employee != null) employees.add(employee);
                     }
                 } else if (stakeholders.isTextual() && !stakeholders.asText().isBlank()) {
-                    grouped.computeIfAbsent(stakeholders.asText(), k -> new java.util.ArrayList<>()).add(message);
-                } else {
-                    grouped.computeIfAbsent("未明确", k -> new java.util.ArrayList<>()).add(message);
+                    String employee = employeeName(stakeholders.asText());
+                    if (employee != null) employees.add(employee);
+                }
+                // 没有明确受影响人时，按说话员工归档，避免再产生角色或“未明确”分组。
+                if (employees.isEmpty()) {
+                    String speaker = employeeName(message.path("speaker").asText(""));
+                    employees.add(speaker == null ? "未明确" : speaker);
+                }
+                for (String employee : employees) {
+                    grouped.computeIfAbsent(employee, k -> new java.util.ArrayList<>()).add(message);
                 }
             }
             for (var entry : grouped.entrySet()) {
-                sb.append("\n**").append(entry.getKey()).append("**\n");
+                sb.append("\n#### ").append(entry.getKey()).append("\n");
                 for (JsonNode message : entry.getValue()) {
                     sb.append("* [").append(message.path("type").asText("其他")).append(" / ")
                             .append(message.path("priority").asText("中")).append("] **")
@@ -152,5 +160,19 @@ public class MarkdownRenderer {
         String withoutTags = value.replaceAll(
                 "(?i)</?(?:p|br|div|span|a|strong|em|blockquote)(?:\\s[^>]*)?>", "");
         return HtmlUtils.htmlUnescape(withoutTags).replace('\u00A0', ' ').trim();
+    }
+
+    /** stakeholder 可为“开发-@李四”；Markdown 只使用员工维度分组，不把角色带入标题。 */
+    private String employeeName(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        int at = normalized.indexOf('@');
+        if (at >= 0) {
+            String employee = normalized.substring(at).trim();
+            return employee.length() > 1 ? employee : null;
+        }
+        if (normalized.isBlank() || "未明确".equals(normalized)) return null;
+        // speaker 在旧数据中可能没有 @；stakeholder 的角色字符串不做员工推断。
+        return normalized.contains("-") || normalized.contains("－") ? null : "@" + normalized;
     }
 }

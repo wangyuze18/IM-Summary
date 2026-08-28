@@ -20,15 +20,25 @@ class MarkdownRendererTest {
 
         String markdown = renderer.render(structured, "agent-workflow");
 
-        assertThat(markdown).contains("### 工作简报", "#### 重要消息");
-        assertThat(markdown).contains("**开发-@李四**", "**管理-@王五**");
+        assertThat(markdown).contains("### 重要事项", "#### @李四", "#### @王五");
+        assertThat(markdown).doesNotContain("### 工作简报", "开发-@李四", "管理-@王五");
         assertThat(markdown).contains("[待办 / 高] **@张三:** 请@李四今天修复登录问题");
     }
 
     @Test
-    void omitsBriefingWhenNoImportantMessagesExist() throws Exception {
+    void omitsImportantSectionWhenNoImportantMessagesExist() throws Exception {
         JsonNode structured = json.parse("{\"groupName\":\"研发群\",\"importantMessages\":[]}");
-        assertThat(renderer.render(structured, "single-model")).doesNotContain("### 工作简报");
+        assertThat(renderer.render(structured, "single-model")).doesNotContain("### 重要事项");
+    }
+
+    @Test
+    void fallsBackToSpeakerForEmployeeGrouping() throws Exception {
+        JsonNode structured = json.parse("""
+                {"groupName":"研发群","importantMessages":[{"speaker":"张三","content":"发布已完成","type":"进度",
+                "priority":"中","stakeholders":["未明确"],"reason":"关键里程碑"}]}
+                """);
+
+        assertThat(renderer.render(structured, "single-model")).contains("### 重要事项", "#### @张三");
     }
 
     @Test

@@ -43,9 +43,9 @@ function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: {
       </div>
       <div className="context-card-body group-overview-body">
         <div className="context-card-main group-overview-main">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <b>{groupName}</b>
-            <span style={{ color: 'var(--text-3)', fontSize: 12 }}>共 {members.length} 人</span>
+          <div className="group-title-line">
+            <b className="group-title-name" title={groupName}>{groupName}</b>
+            <span className="group-member-count">共 {members.length} 人</span>
           </div>
           <div className="avatar-stack">
             {members.slice(0, 6).map((m) => (
