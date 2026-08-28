@@ -203,6 +203,8 @@ export interface ImportPreviewView {
   memberCount: number
   relationshipCount: number
   goldenProvided: boolean
+  importantMessagesProvided: boolean
+  importantMessageCount: number
   title: string
 }
 

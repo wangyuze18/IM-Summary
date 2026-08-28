@@ -32,15 +32,18 @@ public class ImportService {
     private final GoldenSummaryRepository goldenSummaryRepository;
     private final JsonHelper json;
     private final MarkdownRenderer markdownRenderer;
+    private final ImportantMessageNormalizer importantMessageNormalizer;
 
     public ImportService(ConversationSessionRepository sessionRepository,
                          GoldenSummaryRepository goldenSummaryRepository,
                          JsonHelper json,
-                         MarkdownRenderer markdownRenderer) {
+                         MarkdownRenderer markdownRenderer,
+                         ImportantMessageNormalizer importantMessageNormalizer) {
         this.sessionRepository = sessionRepository;
         this.goldenSummaryRepository = goldenSummaryRepository;
         this.json = json;
         this.markdownRenderer = markdownRenderer;
+        this.importantMessageNormalizer = importantMessageNormalizer;
     }
 
     public record ParsedImport(String fileName, JsonNode root, List<Map<String, Object>> validation,
@@ -73,6 +76,11 @@ public class ImportService {
                     }
                 }
             }
+            JsonNode labeledMessages = root.path("groundTruth").path("importantMessages");
+            if (root.path("groundTruth").path("goldenSummary").has("importantMessages")) {
+                issues.add(issue("ERROR", "importantMessages 必须与 goldenSummary 并列，不能放在 goldenSummary 内部"));
+            }
+            validateImportantMessages(labeledMessages, dsMessages, issues);
             if (issues.stream().noneMatch(i -> "ERROR".equals(i.get("level")))) {
                 root = normalizeDataset(root);
             } else {
@@ -104,13 +112,19 @@ public class ImportService {
         }
         JsonNode users = root.path("users");
         if (users.isMissingNode() || !users.isArray() || users.isEmpty()) {
-            issues.add(issue("WARNING", "未提供成员角色信息，重要消息的角色分组能力将降级"));
+            issues.add(issue("WARNING", "未提供成员信息，群组成员展示将降级"));
         }
         JsonNode relationships = root.path("relationships");
         if (relationships.isMissingNode() || !relationships.isArray() || relationships.isEmpty()) {
             issues.add(issue("INFO", "未提供组织/协作关系，关系维度不参与相关性判断"));
         }
         JsonNode golden = root.path("goldenSummary");
+        JsonNode goldenImportant = golden.path("importantMessages");
+        validateImportantMessages(goldenImportant, messages, issues);
+        if (golden.isObject() && goldenImportant.isArray()) {
+            ((ObjectNode) golden).set("importantMessages", importantMessageNormalizer.normalizeArray(goldenImportant));
+            goldenImportant = golden.path("importantMessages");
+        }
         boolean goldenProvided = !golden.isMissingNode() && !golden.isNull()
                 && !golden.path("content").asText("").isBlank();
         if (!goldenProvided) {
@@ -135,6 +149,8 @@ public class ImportService {
                 : group.path("members").isArray() ? group.path("members").size() : 0);
         preview.put("relationshipCount", relationships.isArray() ? relationships.size() : 0);
         preview.put("goldenProvided", goldenProvided);
+        preview.put("importantMessagesProvided", goldenImportant.isArray());
+        preview.put("importantMessageCount", goldenImportant.isArray() ? goldenImportant.size() : 0);
         preview.put("title", root.path("session").path("title").asText(group.path("groupName").asText()));
 
         String importId = UUID.randomUUID().toString();
@@ -217,7 +233,7 @@ public class ImportService {
         for (JsonNode m : root.path("messages")) {
             ObjectNode n = m.deepCopy();
             if (!n.hasNonNull("sender")) {
-                n.put("sender", "@" + m.path("senderDisplayName").asText(""));
+                n.put("sender", m.path("senderDisplayName").asText(""));
             }
             messages.add(n);
         }
@@ -254,14 +270,65 @@ public class ImportService {
             summaryOnly.remove("importantMessages");
             normalizedGolden.put("content", markdownRenderer.render(summaryOnly, "golden"));
             JsonNode important = root.path("groundTruth").path("importantMessages");
-            if (!important.isArray()) {
-                important = golden.path("importantMessages");
-            }
             if (important.isArray()) {
-                normalizedGolden.set("importantMessages", important);
+                normalizedGolden.set("importantMessages", importantMessageNormalizer.normalizeArray(important));
             }
         }
         return std;
+    }
+
+    /** 黄金重要消息必须可逐条回指原消息；旧字段不再属于导入契约。 */
+    private void validateImportantMessages(JsonNode important, JsonNode messages,
+                                           List<Map<String, Object>> issues) {
+        if (important == null || important.isMissingNode() || important.isNull()) return;
+        if (!important.isArray()) {
+            issues.add(issue("ERROR", "groundTruth.importantMessages 必须是数组"));
+            return;
+        }
+        Map<String, JsonNode> sourceById = new HashMap<>();
+        if (messages != null && messages.isArray()) {
+            for (JsonNode message : messages) {
+                sourceById.put(message.path("messageId").asText(""), message);
+            }
+        }
+        int index = 0;
+        for (JsonNode item : important) {
+            String field = "importantMessages[" + index++ + "]";
+            if (!item.isObject()) {
+                issues.add(issue("ERROR", field + " 必须是对象"));
+                continue;
+            }
+            for (String removed : List.of("type", "priority", "stakeholders")) {
+                if (item.has(removed)) {
+                    issues.add(issue("ERROR", field + " 不再支持字段 " + removed));
+                }
+            }
+            String messageId = item.path("messageId").asText("").trim();
+            String speaker = item.path("speaker").asText("").trim();
+            String content = item.path("content").asText("");
+            String reason = item.path("reason").asText("").trim();
+            if (messageId.isBlank()) issues.add(issue("ERROR", field + ".messageId 不能为空"));
+            if (speaker.isBlank()) issues.add(issue("ERROR", field + ".speaker 不能为空"));
+            if (speaker.startsWith("@")) issues.add(issue("ERROR", field + ".speaker 应填写人物本名，不加 @"));
+            if (content.isBlank()) issues.add(issue("ERROR", field + ".content 不能为空"));
+            if (reason.isBlank()) issues.add(issue("ERROR", field + ".reason 不能为空"));
+            JsonNode source = sourceById.get(messageId);
+            if (!messageId.isBlank() && source == null) {
+                issues.add(issue("ERROR", field + ".messageId 在原消息中不存在：" + messageId));
+                continue;
+            }
+            if (source != null) {
+                String sourceSpeaker = source.path("senderDisplayName")
+                        .asText(source.path("sender").asText(""));
+                sourceSpeaker = importantMessageNormalizer.realName(sourceSpeaker);
+                if (!speaker.isBlank() && !speaker.equals(sourceSpeaker)) {
+                    issues.add(issue("ERROR", field + ".speaker 必须与原消息发送者本名一致"));
+                }
+                if (!content.isBlank() && !content.equals(source.path("content").asText(""))) {
+                    issues.add(issue("ERROR", field + ".content 必须与原消息原文完全一致"));
+                }
+            }
+        }
     }
 
     /** 群组元信息只描述群本身；数据集中的评测目标用户不进入会话、界面或模型上下文。 */

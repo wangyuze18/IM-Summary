@@ -47,9 +47,9 @@ function Edge({ d, state, tone = 'navy', arrow = true, feedback = false }: {
 
 function OutputSheet({ state }: { state: FlowState }) {
   return <div className={`workflow-output-sheet desk-output-sheet ${state === 'active' ? 'active' : state === 'done' ? 'done' : ''}`}>
-    <span className="sheet-fold" /><b>工作简报</b>
+    <span className="sheet-fold" /><b>最终结果</b>
     <span className="sheet-section navy">摘要</span><i /><i />
-    <span className="sheet-section teal">重要事项</span><i />
+    <span className="sheet-section teal">重要消息</span><i />
   </div>
 }
 

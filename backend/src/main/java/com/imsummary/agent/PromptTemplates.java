@@ -21,12 +21,12 @@ public final class PromptTemplates {
 
             排除标准：寒暄、收到/好的/谢谢、表情、重复转述、无结论提议、无业务影响的过程闲聊。
             原文约束：content 必须对应一条原始消息，仅可去除 HTML 标签和首尾空白；不得合并、改写或补充原文。
-            人员约束：speaker 保留原始 @ 名称；stakeholders 只列消息中明确提及、被指派或从职责字段直接可确定的受影响人员，格式“角色-@姓名”；无法确定时用 ["未明确"]。
-            优先级：高=阻断/明确截止/关键决议/高风险；中=普通待办或关键进度；低=辅助性重要信息。
+            说话人约束：speaker 必须等于原消息发送者的真实姓名（senderDisplayName），不得添加 @、职位、角色或其他前后缀。
             去重：同一事实的重复消息只保留信息最完整或最终状态的一条；状态变更时保留最新有效消息。
 
+            每条只允许 messageId、speaker、content、reason 四个字段，不要输出 type、priority、stakeholders 或其他扩展字段。
             仅输出 JSON，不要解释。推荐格式：
-            {"importantMessages":[{"messageId":"原消息ID","speaker":"@说话者","content":"原文","type":"待办|决议|风险|审批|进度|阻断|其他","priority":"高|中|低","stakeholders":["角色-@人员"],"reason":"业务影响，不超过25字"}]}
+            {"importantMessages":[{"messageId":"原消息ID","speaker":"张三","content":"原文","reason":"业务影响，不超过25字"}]}
             也允许直接输出上述条目数组。无重要消息时输出 {"importantMessages":[]}。
             """;
 
@@ -38,7 +38,7 @@ public final class PromptTemplates {
             你是企业IM消息分析系统中的一个专职Agent。你必须严格遵守以下全局规则：
             1. 事实来源唯一性：只有聊天消息原文可作为事实证据。用户画像、职位、关系信息不得作为事实依据。
             2. 不创造信息：不得编造消息中不存在的决议、待办、负责人、截止日期、人名、版本号或系统名。
-            3. 实体保真：@提及、人名、版本号、系统名必须原样保留，保留 @ 符号。
+            3. 实体保真：消息正文中的 @提及、人名、版本号、系统名必须原样保留；结构字段 speaker 按其专属格式填写。
             4. 空值优先：负责人/截止日期未明确时填"未明确"，不得猜测。
             5. 状态谨慎：无法确定状态时保留 proposed/待处理，不得升级为已确认。
             6. 仅输出要求的 JSON，不输出 markdown 代码块标记、解释或思维过程。
@@ -123,12 +123,11 @@ public final class PromptTemplates {
             2. Coverage：待办、明确决议、风险、审批、阻断、关键进度是否遗漏；
             3. Source Fidelity：messageId、speaker、content 是否能逐条对应原消息，content 是否被改写；
             4. State：是否保留被撤销/覆盖的旧消息而遗漏最新有效状态；
-            5. Stakeholders：人员是否有明确依据，是否凭空推断个人相关性。
             严格区分严重程度：
             - error：遗漏明确待办、已达成决议、风险、审批、阻断或关键进度；误收闲聊/未达成的提议；原文、messageId、说话者不匹配；保留已失效状态。任一 error 存在时 passed 必须为 false，以触发定向修订。
-            - warning：仅用于不改变条目取舍的次要上下文、优先级或受影响人表达差异；不得用 warning 降级上述遗漏。
+            - warning：仅用于不改变条目取舍的次要上下文表达差异；不得用 warning 降级上述遗漏。
             仅输出 JSON：
-            {"passed":true,"issues":[{"type":"false_positive|omission|source|state|stakeholder|schema","severity":"error|warning","messageId":"m01","description":"问题","suggestion":"如何修订"}]}
+            {"passed":true,"issues":[{"type":"false_positive|omission|source|state|schema","severity":"error|warning","messageId":"m01","description":"问题","suggestion":"如何修订"}]}
             """;
 
     /** Stage 4：摘要事实审核 */
@@ -193,7 +192,7 @@ public final class PromptTemplates {
 
     public static final String IMPORTANCE_EVALUATION_SYSTEM = """
             你是重要消息抽取评测器。只比较“生成重要消息”和“黄金重要消息”，不得评价摘要文本。
-            以 messageId 优先匹配；缺少 messageId 时按 speaker、原文语义、类型和最终状态综合匹配。
+            以 messageId 优先匹配；缺少 messageId 时按 speaker 与原文内容综合匹配。
             importantMessagePrecision = 正确匹配的生成条目数 / 生成条目数。
             importantMessageRecall = 正确匹配的黄金条目数 / 黄金条目数。
             错误类型、虚构原文、过时状态和普通闲聊均是假阳性；遗漏关键待办/决议/风险/审批/阻断/进度是假阴性。

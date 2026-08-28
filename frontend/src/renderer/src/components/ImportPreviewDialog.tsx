@@ -81,6 +81,12 @@ export default function ImportPreviewDialog({ files, onConfirm, onCancel, onRemo
                       {selected.preview.hasGoldenSummary ? '已携带' : '未携带'}
                     </b>
                   </div>
+                  <div className="cell">
+                    重要消息标注
+                    <b style={{ color: selected.preview.hasImportantMessageLabels ? 'var(--green)' : 'var(--text-3)' }}>
+                      {selected.preview.hasImportantMessageLabels ? `已标注 · ${selected.preview.importantMessageCount} 条` : '未标注'}
+                    </b>
+                  </div>
                 </div>
                 {selected.warnings.length > 0 && (
                   <div className="warn-list">

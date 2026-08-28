@@ -28,6 +28,7 @@ public class SessionService {
     private final EvaluationRecordRepository evaluationRecordRepository;
     private final GoldenSummaryRepository goldenSummaryRepository;
     private final JsonHelper json;
+    private final MarkdownRenderer markdownRenderer;
 
     public SessionService(ConversationSessionRepository sessionRepository,
                           SummaryResultRepository summaryResultRepository,
@@ -35,7 +36,8 @@ public class SessionService {
                           AgentStepRunRepository agentStepRunRepository,
                           EvaluationRecordRepository evaluationRecordRepository,
                           GoldenSummaryRepository goldenSummaryRepository,
-                          JsonHelper json) {
+                          JsonHelper json,
+                          MarkdownRenderer markdownRenderer) {
         this.sessionRepository = sessionRepository;
         this.summaryResultRepository = summaryResultRepository;
         this.agentRunRepository = agentRunRepository;
@@ -43,6 +45,7 @@ public class SessionService {
         this.evaluationRecordRepository = evaluationRecordRepository;
         this.goldenSummaryRepository = goldenSummaryRepository;
         this.json = json;
+        this.markdownRenderer = markdownRenderer;
     }
 
     public List<Map<String, Object>> listSessions(String keyword) {
@@ -125,13 +128,27 @@ public class SessionService {
         if (s.isGoldenProvided() && golden.isPresent()) {
             view.put("goldenProvided", true);
             view.put("goldenVersion", golden.get().getGoldenVersion());
-            view.put("content", golden.get().getContent());
+            view.put("content", goldenDisplayContent(golden.get().getContent(),
+                    golden.get().getImportantMessagesJson()));
         } else {
             view.put("goldenProvided", false);
             view.put("goldenVersion", null);
             view.put("content", null);
         }
         return view;
+    }
+
+    private String goldenDisplayContent(String summaryContent, String importantMessagesJson) {
+        if (importantMessagesJson == null || importantMessagesJson.isBlank()) return summaryContent;
+        try {
+            String importantSection = markdownRenderer.renderImportantMessages(json.parse(importantMessagesJson)).strip();
+            if (importantSection.isBlank()) return summaryContent;
+            String summary = summaryContent == null ? "" : summaryContent.stripTrailing();
+            if (summary.endsWith("---")) summary = summary.substring(0, summary.length() - 3).stripTrailing();
+            return summary + "\n\n---\n\n" + importantSection + "\n";
+        } catch (Exception ignored) {
+            return summaryContent;
+        }
     }
 
     /** 删除会话：事务内级联清理运行/步骤/摘要/评测/黄金摘要，避免孤儿记录 */

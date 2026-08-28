@@ -29,44 +29,6 @@ public class MarkdownRenderer {
             sb.append("\n---\n\n");
         }
 
-        JsonNode importantMessages = structured.path("importantMessages");
-        if (importantMessages.isArray() && !importantMessages.isEmpty()) {
-            sb.append("### 重要事项\n");
-            java.util.LinkedHashMap<String, java.util.List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
-            for (JsonNode message : importantMessages) {
-                JsonNode stakeholders = message.path("stakeholders");
-                java.util.LinkedHashSet<String> employees = new java.util.LinkedHashSet<>();
-                if (stakeholders.isArray() && !stakeholders.isEmpty()) {
-                    for (JsonNode stakeholder : stakeholders) {
-                        String employee = employeeName(stakeholder.asText(""));
-                        if (employee != null) employees.add(employee);
-                    }
-                } else if (stakeholders.isTextual() && !stakeholders.asText().isBlank()) {
-                    String employee = employeeName(stakeholders.asText());
-                    if (employee != null) employees.add(employee);
-                }
-                // 没有明确受影响人时，按说话员工归档，避免再产生角色或“未明确”分组。
-                if (employees.isEmpty()) {
-                    String speaker = employeeName(message.path("speaker").asText(""));
-                    employees.add(speaker == null ? "未明确" : speaker);
-                }
-                for (String employee : employees) {
-                    grouped.computeIfAbsent(employee, k -> new java.util.ArrayList<>()).add(message);
-                }
-            }
-            for (var entry : grouped.entrySet()) {
-                sb.append("\n#### ").append(entry.getKey()).append("\n");
-                for (JsonNode message : entry.getValue()) {
-                    sb.append("* [").append(message.path("type").asText("其他")).append(" / ")
-                            .append(message.path("priority").asText("中")).append("] **")
-                            .append(message.path("speaker").asText("未明确")).append(":** ")
-                            .append(cleanRichText(message.path("content").asText())).append("\n")
-                            .append("  * **重要原因:** ").append(message.path("reason").asText("未明确")).append("\n");
-                }
-            }
-            sb.append("\n---\n\n");
-        }
-
         JsonNode decisions = structured.path("decisions");
         if (decisions.isArray() && !decisions.isEmpty()) {
             sb.append("### 决议事项\n");
@@ -114,6 +76,7 @@ public class MarkdownRenderer {
 
         JsonNode openIssues = structured.path("openIssues");
         JsonNode keyInfo = structured.path("keyInfo");
+        JsonNode importantMessages = structured.path("importantMessages");
         if ((openIssues.isArray() && !openIssues.isEmpty()) || (keyInfo.isArray() && !keyInfo.isEmpty())) {
             sb.append("### 待解决问题与关键信息 \n");
             if (openIssues.isArray() && !openIssues.isEmpty()) {
@@ -130,11 +93,42 @@ public class MarkdownRenderer {
                     sb.append("  ").append(i++).append(". ").append(k.asText()).append(" \n");
                 }
             }
-            sb.append("\n");
+            sb.append(importantMessages.isArray() && !importantMessages.isEmpty() ? "\n---\n\n" : "\n");
+        }
+
+        if (importantMessages.isArray() && !importantMessages.isEmpty()) {
+            sb.append(renderImportantMessages(importantMessages));
         }
 
         // 输出层统一移除装饰性表情。
-        return sb.toString()
+        return removeDecorativeEmoji(sb.toString());
+    }
+
+    /** 单独渲染黄金重要消息，供对照展示追加到黄金摘要正文末尾。 */
+    public String renderImportantMessages(JsonNode importantMessages) {
+        if (importantMessages == null || !importantMessages.isArray() || importantMessages.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("### 重要消息\n");
+        java.util.LinkedHashMap<String, java.util.List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
+        for (JsonNode message : importantMessages) {
+            String speaker = message.path("speaker").asText("").trim();
+            grouped.computeIfAbsent(speaker.isBlank() ? "未明确" : speaker,
+                    key -> new java.util.ArrayList<>()).add(message);
+        }
+        for (var entry : grouped.entrySet()) {
+            sb.append("\n#### ").append(entry.getKey()).append("\n");
+            for (JsonNode message : entry.getValue()) {
+                sb.append("* ").append(cleanRichText(message.path("content").asText())).append("\n");
+                String reason = message.path("reason").asText("").trim();
+                if (!reason.isBlank()) {
+                    sb.append("  * **重要原因:** ").append(reason).append("\n");
+                }
+            }
+        }
+        return removeDecorativeEmoji(sb.append("\n").toString());
+    }
+
+    private String removeDecorativeEmoji(String value) {
+        return value
                 .replaceAll("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}]", "")
                 .replace("\uFE0F", "");
     }
@@ -162,17 +156,4 @@ public class MarkdownRenderer {
         return HtmlUtils.htmlUnescape(withoutTags).replace('\u00A0', ' ').trim();
     }
 
-    /** stakeholder 可为“开发-@李四”；Markdown 只使用员工维度分组，不把角色带入标题。 */
-    private String employeeName(String value) {
-        if (value == null) return null;
-        String normalized = value.trim();
-        int at = normalized.indexOf('@');
-        if (at >= 0) {
-            String employee = normalized.substring(at).trim();
-            return employee.length() > 1 ? employee : null;
-        }
-        if (normalized.isBlank() || "未明确".equals(normalized)) return null;
-        // speaker 在旧数据中可能没有 @；stakeholder 的角色字符串不做员工推断。
-        return normalized.contains("-") || normalized.contains("－") ? null : "@" + normalized;
-    }
 }

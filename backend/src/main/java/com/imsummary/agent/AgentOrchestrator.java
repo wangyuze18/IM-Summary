@@ -46,6 +46,7 @@ public class AgentOrchestrator {
     private final ModelProfileService profileService;
     private final SessionService sessionService;
     private final JsonHelper json;
+    private final ImportantMessageNormalizer importantMessageNormalizer;
     private final MarkdownRenderer markdownRenderer;
     private final AgentRunRepository runRepository;
     private final AgentStepRunRepository stepRepository;
@@ -59,6 +60,7 @@ public class AgentOrchestrator {
 
     public AgentOrchestrator(ModelGateway gateway, ModelProfileService profileService,
                              SessionService sessionService, JsonHelper json,
+                             ImportantMessageNormalizer importantMessageNormalizer,
                              MarkdownRenderer markdownRenderer,
                              AgentRunRepository runRepository, AgentStepRunRepository stepRepository,
                              SummaryResultRepository summaryRepository,
@@ -69,6 +71,7 @@ public class AgentOrchestrator {
         this.profileService = profileService;
         this.sessionService = sessionService;
         this.json = json;
+        this.importantMessageNormalizer = importantMessageNormalizer;
         this.markdownRenderer = markdownRenderer;
         this.runRepository = runRepository;
         this.stepRepository = stepRepository;
@@ -348,24 +351,7 @@ public class AgentOrchestrator {
     }
 
     private JsonNode normalizeImportantOutput(JsonNode raw) {
-        ObjectNode normalized = json.mapper().createObjectNode();
-        JsonNode messages = null;
-        if (raw != null && raw.isArray()) messages = raw;
-        if (raw != null && raw.isObject()) {
-            for (String key : List.of("importantMessages", "important_messages", "messages", "items")) {
-                if (raw.path(key).isArray()) {
-                    messages = raw.path(key);
-                    break;
-                }
-            }
-            if (messages == null && (raw.hasNonNull("content") || raw.hasNonNull("speaker"))) {
-                ArrayNode singleton = json.mapper().createArrayNode();
-                singleton.add(raw.deepCopy());
-                messages = singleton;
-            }
-        }
-        normalized.set("importantMessages", messages == null ? json.mapper().createArrayNode() : messages.deepCopy());
-        return normalized;
+        return importantMessageNormalizer.normalize(raw);
     }
 
     private JsonNode mergeState(JsonNode events, JsonNode stateResult) {

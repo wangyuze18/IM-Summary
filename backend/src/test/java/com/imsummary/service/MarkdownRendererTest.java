@@ -11,34 +11,39 @@ class MarkdownRendererTest {
     private final MarkdownRenderer renderer = new MarkdownRenderer();
 
     @Test
-    void rendersImportantMessagesGroupedByEveryStakeholder() throws Exception {
+    void rendersImportantMessagesAtTheEndGroupedByRealSpeakerName() throws Exception {
         JsonNode structured = json.parse("""
                 {"groupName":"研发群","period":"2026-08-27","abstractPoints":["完成版本评审。"],
-                 "importantMessages":[{"speaker":"@张三","content":"<p>请@李四今天修复登录问题&nbsp;</p>","type":"待办","priority":"高",
-                 "stakeholders":["开发-@李四","管理-@王五"],"reason":"阻塞发版"}]}
+                 "keyInfo":["版本v1.2"],
+                 "importantMessages":[{"messageId":"m1","speaker":"张三","content":"<p>请@李四今天修复登录问题&nbsp;</p>",
+                 "reason":"阻塞发版"}]}
                 """);
 
         String markdown = renderer.render(structured, "agent-workflow");
 
-        assertThat(markdown).contains("### 重要事项", "#### @李四", "#### @王五");
-        assertThat(markdown).doesNotContain("### 工作简报", "开发-@李四", "管理-@王五");
-        assertThat(markdown).contains("[待办 / 高] **@张三:** 请@李四今天修复登录问题");
+        assertThat(markdown).contains("### 重要消息", "#### 张三", "* 请@李四今天修复登录问题");
+        assertThat(markdown).doesNotContain("### 重要事项", "[待办", " / 高]");
+        assertThat(markdown.indexOf("### 重要消息")).isGreaterThan(markdown.indexOf("### 待解决问题与关键信息"));
+        assertThat(markdown.strip()).endsWith("* **重要原因:** 阻塞发版");
     }
 
     @Test
     void omitsImportantSectionWhenNoImportantMessagesExist() throws Exception {
         JsonNode structured = json.parse("{\"groupName\":\"研发群\",\"importantMessages\":[]}");
-        assertThat(renderer.render(structured, "single-model")).doesNotContain("### 重要事项");
+        assertThat(renderer.render(structured, "single-model")).doesNotContain("### 重要消息");
     }
 
     @Test
-    void fallsBackToSpeakerForEmployeeGrouping() throws Exception {
+    void groupsMultipleMessagesBySpeaker() throws Exception {
         JsonNode structured = json.parse("""
-                {"groupName":"研发群","importantMessages":[{"speaker":"张三","content":"发布已完成","type":"进度",
-                "priority":"中","stakeholders":["未明确"],"reason":"关键里程碑"}]}
+                {"groupName":"研发群","importantMessages":[
+                {"messageId":"m1","speaker":"张三","content":"发布进行中","reason":"关键进度"},
+                {"messageId":"m2","speaker":"张三","content":"发布已完成","reason":"关键里程碑"}]}
                 """);
 
-        assertThat(renderer.render(structured, "single-model")).contains("### 重要事项", "#### @张三");
+        String markdown = renderer.render(structured, "single-model");
+        assertThat(markdown).contains("### 重要消息", "#### 张三", "发布进行中", "发布已完成");
+        assertThat(markdown).doesNotContain("#### @张三");
     }
 
     @Test
@@ -53,7 +58,7 @@ class MarkdownRendererTest {
 
     @Test
     void extractsTopLevelJsonArrayForImportanceModelOutput() throws Exception {
-        String value = json.extractJsonValue("```json\n[{\"speaker\":\"@张三\",\"content\":\"修复问题\"}]\n```");
+        String value = json.extractJsonValue("```json\n[{\"speaker\":\"张三\",\"content\":\"修复问题\"}]\n```");
         assertThat(json.parse(value).isArray()).isTrue();
         assertThat(json.parse(value)).hasSize(1);
     }

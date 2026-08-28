@@ -53,7 +53,7 @@ const TEAM_PHASES: Array<{ title: string; work: WorkCard[] }> = [
   ] },
   { title: '生成内容', work: [
     { key: 'summary', title: '摘要生成', action: '撰写结构化工作简报', sprite: 'summary', tone: 'navy' },
-    { key: 'importance-extractor', title: '重要消息', action: '按人员保留原始消息', sprite: 'importance-extractor', tone: 'teal' }
+    { key: 'importance-extractor', title: '重要消息', action: '按说话人保留原始消息', sprite: 'importance-extractor', tone: 'teal' }
   ] },
   { title: '检查与返工', work: [
     { key: 'factual-auditor', title: '摘要审核', action: '核对事实、状态与遗漏', sprite: 'factual-auditor', tone: 'navy' },

@@ -178,6 +178,8 @@ export interface ImportPreview {
   profileCount: number
   relationCount: number
   hasGoldenSummary: boolean
+  hasImportantMessageLabels: boolean
+  importantMessageCount: number
 }
 
 export type ImportFileStatus = 'checking' | 'ok' | 'warning' | 'failed'

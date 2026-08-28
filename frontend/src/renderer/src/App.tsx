@@ -672,7 +672,9 @@ export default function App() {
               // 后端预览不区分画像数，以成员数近似；消息全文由确认导入后从会话详情加载
               profileCount: pv.memberCount,
               relationCount: pv.relationshipCount,
-              hasGoldenSummary: pv.goldenProvided
+              hasGoldenSummary: pv.goldenProvided,
+              hasImportantMessageLabels: pv.importantMessagesProvided,
+              importantMessageCount: pv.importantMessageCount
             }
           : undefined
       }
