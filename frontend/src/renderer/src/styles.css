@@ -320,13 +320,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .conversation-module > section.panel { border: 0; border-radius: 0; box-shadow: none; min-width: 0; }
 .conversation-module > section.panel .panel-header { border-right: 1px solid var(--border); }
 .conversation-module .chat-list { max-height: clamp(274px, 33vh, 420px); }
-.conversation-module .compact-sidebar { min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-left: 1px solid var(--border); }
+.conversation-module .compact-sidebar { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: 0; border-left: 1px solid var(--border); }
 .conversation-module .compact-sidebar > .panel { border: 0; border-radius: 0; box-shadow: none; min-width: 0; overflow: hidden; }
 .conversation-module .compact-sidebar > .panel + .panel { border-left: 1px solid var(--border); }
 .conversation-module .compact-sidebar .panel-header { border-right: 0; }
-.conversation-module .context-card-body { height: clamp(274px, 33vh, 420px); min-height: 0; overflow: hidden; display: grid; grid-template-rows: minmax(0, 1fr) 32px; padding: 10px 14px 8px; }
+.conversation-module .context-card-body { height: clamp(274px, 33vh, 420px); min-height: 0; overflow: hidden; display: grid; grid-template-rows: minmax(0, 1fr) 32px; padding: 10px 10px 8px; }
 .conversation-module .context-card-main { min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 4px; }
-.conversation-module .group-overview-main { padding-right: 10px; padding-left: 10px; }
+.conversation-module .group-overview-main { padding-right: 2px; padding-left: 0; }
 .conversation-module .org-card-main { align-items: center; padding-right: 4px; padding-left: 4px; }
 .conversation-module .org-card-main .org-svg { width: 100%; max-height: 204px; }
 .conversation-module .context-card-action { min-height: 32px; display: flex; align-items: center; justify-content: center; border-top: 1px solid #f0f2f5; }
@@ -404,7 +404,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .evaluation-progress > i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; background: #e5ebf2; }
 .evaluation-progress > i::after { content: ''; position: absolute; top: 0; bottom: 0; width: 24%; border-radius: 2px; background: #7196c5; animation: evaluationScan 1.6s ease-in-out infinite; }
 .evaluation-pulse { width: 7px; height: 7px; border-radius: 50%; background: #4b78b1; animation: statusPulse 1.2s ease-in-out infinite; }
-.evaluation-empty { padding: 14px 16px 4px; color: var(--text-3); font-size: 12.5px; }
+.evaluation-empty { min-height: 34px; padding: 2px 16px 10px; display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 11.5px; }
 @keyframes evaluationScan { 0% { left: -24%; } 100% { left: 100%; } }
 .metrics-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 14px 16px 6px; }
 .metric-card { border: none; border-right: 1px solid var(--border); border-radius: 0; padding: 8px 12px; text-align: center; }
@@ -424,8 +424,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* 右侧 CompactContextSidebar */
 .compact-sidebar { min-height: 0; }
 .group-overview .avatar-stack { display: flex; margin: 8px 0; }
-.group-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; }
-.group-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-title-line { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; flex-wrap: nowrap; }
+.group-title-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-member-count { flex: 0 0 auto; white-space: nowrap; color: var(--text-3); font-size: 12px; }
 .group-overview .avatar-stack .mini-avatar { margin-left: -7px; border: 2px solid #fff; }
 .group-overview .avatar-stack .mini-avatar:first-child { margin-left: 0; }

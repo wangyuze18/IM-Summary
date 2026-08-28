@@ -38,7 +38,7 @@ function GroupOverviewCard({ groupName, members, highlightUserId, onShowAll }: {
 
   return (
     <section className="panel group-overview">
-      <div className="panel-header" style={{ padding: '10px 14px' }}>
+      <div className="panel-header" style={{ padding: '10px' }}>
         <div className="panel-title" style={{ fontSize: 13 }}>群组信息</div>
       </div>
       <div className="context-card-body group-overview-body">

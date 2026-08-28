@@ -734,6 +734,24 @@ export default function App() {
     return matched?.metrics ?? null
   }, [golden, evalRecords, summaries, activeVersion])
 
+  const handleEvaluateCurrent = () => {
+    if (!activeSessionId || evaluating) return
+    const current = summaries.find((summary) => summary.version === activeVersion)
+    if (!current) return
+    setEvaluatingBySession((state) => ({ ...state, [activeSessionId]: true }))
+    void startEvaluationApi(activeSessionId, current.summaryId)
+      .then((record) => {
+        const mapped = mapEvaluationRecord(record)
+        setEvalBySession((state) => ({
+          ...state,
+          [activeSessionId]: [mapped, ...(state[activeSessionId] ?? []).filter((item) => item.evaluationId !== mapped.evaluationId)]
+        }))
+        toast('评测已更新')
+      })
+      .catch((error) => toast(`评测未完成：${errorMessageOf(error)}`, 'error'))
+      .finally(() => setEvaluatingBySession((state) => ({ ...state, [activeSessionId]: false })))
+  }
+
   const runForView = isRunningHere || (run && run.sessionId === activeSessionId) ? run : null
 
   return (
@@ -831,6 +849,7 @@ export default function App() {
                 records={evalRecords}
                 currentMetrics={currentMetrics}
                 evaluating={evaluating}
+                onEvaluate={handleEvaluateCurrent}
                 onToast={toast}
               />
             )}
