@@ -36,7 +36,6 @@ docs/evaluation-plan-v2
 | `backend/` | Java 后端（Spring Boot） |
 | `frontend/` | 桌面端前端 |
 | `docs/` | 设计与规范文档 |
-| `prompts/` | Prompt 模板文件 |
 
 **跨目录修改**必须在 PR 描述中说明原因。接口契约变更（API/数据结构）需先改 `docs/` 再动代码。
 
@@ -155,8 +154,8 @@ feat(frontend): 评测历史列表支持按模式筛选与 CSV 导出
 - 使用 Markdown
 - 设计文档变更需更新版本号与日期
 
-### Prompt 文件
-- 存放于 `prompts/` 目录，按 Agent 分目录
+### Prompt
+- Prompt 模板集中维护于后端代码 `backend/src/main/java/com/imsummary/agent/PromptTemplates.java`，不另设独立目录
 - 修改 Prompt 必须同步更新 `docs/prompt-strategy/` 说明
 - 提交信息中标注 `scope=prompt`
 

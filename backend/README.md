@@ -32,17 +32,21 @@ mvn spring-boot:run
 
 | 功能 | 接口 |
 | :--- | :--- |
-| 后端探测 | `GET /api/health` |
 | 导入预检 | `POST /api/imports/validate` |
 | 确认导入 | `POST /api/imports/{importId}/confirm` |
 | 会话列表/详情 | `GET /api/sessions`、`GET /api/sessions/{id}` |
+| 会话组织/黄金摘要 | `GET /api/sessions/{id}/organization`、`GET /api/sessions/{id}/golden-summary` |
 | 删除会话 | `DELETE /api/sessions/{id}` |
 | 启动分析 | `POST /api/sessions/{id}/runs`，body 为 `{"mode":"agent-workflow"}` 或 `{"mode":"single-model"}` |
-| 运行状态 | `GET /api/runs/{runId}` |
-| 摘要结果 | `GET /api/summaries/{summaryId}` |
+| 运行状态/历史 | `GET /api/runs/{runId}`、`GET /api/sessions/{id}/runs` |
+| 摘要结果/历史 | `GET /api/sessions/{id}/summary`、`GET /api/sessions/{id}/summaries` |
+| 摘要导出 | `GET /api/summaries/{summaryId}/export?type=markdown\|json` |
 | 启动评测 | `POST /api/sessions/{id}/evaluations` |
-| 评测历史 | `GET /api/sessions/{id}/evaluations` |
-| 模型配置 | `/api/model-profiles`、`/api/model-bindings` |
+| 评测历史/导出 | `GET /api/sessions/{id}/evaluations`、`GET /api/sessions/{id}/evaluations/export?format=csv\|json\|markdown` |
+| 模型配置 | `GET/POST /api/model-profiles`、`DELETE /api/model-profiles/{profileId}`、`POST /api/model-profiles/test`、`POST /api/model-profiles/models`、`GET /api/model-profiles/{profileId}/api-key` |
+| 模型绑定 | `GET/PUT /api/model-profiles/bindings` |
+
+后端无独立健康检查端点；前端连通性探测复用 `GET /api/sessions`（短超时）。
 
 分析接口不接收账户或目标用户字段。组织关系里的 `targetUserId` 仅表示一条图边的目标端点，与个人关注无关。
 
