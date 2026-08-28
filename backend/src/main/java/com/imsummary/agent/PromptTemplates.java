@@ -124,6 +124,9 @@ public final class PromptTemplates {
             3. Source Fidelity：messageId、speaker、content 是否能逐条对应原消息，content 是否被改写；
             4. State：是否保留被撤销/覆盖的旧消息而遗漏最新有效状态；
             5. Stakeholders：人员是否有明确依据，是否凭空推断个人相关性。
+            严格区分严重程度：
+            - error：遗漏明确待办、已达成决议、风险、审批、阻断或关键进度；误收闲聊/未达成的提议；原文、messageId、说话者不匹配；保留已失效状态。任一 error 存在时 passed 必须为 false，以触发定向修订。
+            - warning：仅用于不改变条目取舍的次要上下文、优先级或受影响人表达差异；不得用 warning 降级上述遗漏。
             仅输出 JSON：
             {"passed":true,"issues":[{"type":"false_positive|omission|source|state|stakeholder|schema","severity":"error|warning","messageId":"m01","description":"问题","suggestion":"如何修订"}]}
             """;

@@ -112,6 +112,10 @@ export default function App() {
   const [mode, setMode] = useState<AnalysisMode>('agent-workflow')
   const [run, setRun] = useState<RunState | null>(null)
   const timersRef = useRef<number[]>([])
+  // 保留各会话、各模式最近一次 Run 的真实步骤结果，刷新后仍能区分“已完成”与“有提醒”。
+  const [lastRunStepsBySession, setLastRunStepsBySession] = useState<
+    Record<string, Partial<Record<AnalysisMode, AgentStepProgress[]>>>
+  >({})
   // 各模式上次运行耗时（按会话 + 模式隔离，V4.4：两模式时间相互独立）
   const [lastRunSecondsBySession, setLastRunSecondsBySession] = useState<Record<string, Partial<Record<AnalysisMode, number>>>>({})
 
@@ -264,18 +268,28 @@ export default function App() {
       try {
         // 恢复各模式上次运行耗时（V4.4：取每模式最近一次成功运行的起止时间差）
         const runs = await listSessionRuns(sessionId)
-        const latest: Partial<Record<AnalysisMode, { at: number; secs: number }>> = {}
+        const latest: Partial<Record<AnalysisMode, { at: number; secs: number; runId: string }>> = {}
         for (const r of runs) {
           if ((r.status === 'completed' || r.status === 'completed_with_warning') && r.startedAt && r.finishedAt) {
             const fin = new Date(r.finishedAt).getTime()
             const secs = Math.max(0, Math.round((fin - new Date(r.startedAt).getTime()) / 1000))
             const cur = latest[r.mode]
-            if (!cur || fin >= cur.at) latest[r.mode] = { at: fin, secs }
+            if (!cur || fin >= cur.at) latest[r.mode] = { at: fin, secs, runId: r.runId }
           }
         }
         const entry = Object.fromEntries(Object.entries(latest).map(([m, v]) => [m, v.secs])) as Partial<Record<AnalysisMode, number>>
         if (Object.keys(entry).length > 0) {
           setLastRunSecondsBySession((m) => ({ ...m, [sessionId]: { ...m[sessionId], ...entry } }))
+        }
+        const latestDetails = await Promise.all(
+          Object.entries(latest).map(async ([runMode, value]) => {
+            const detail = await getRunStatus(value.runId)
+            const typedMode = runMode as AnalysisMode
+            return [typedMode, mapAgentSteps(detail.agentSteps, keysForMode(typedMode))] as const
+          })
+        )
+        if (latestDetails.length > 0) {
+          setLastRunStepsBySession((m) => ({ ...m, [sessionId]: Object.fromEntries(latestDetails) }))
         }
       } catch {
         // 运行历史拉取失败不阻断其他内容展示
@@ -327,14 +341,17 @@ export default function App() {
         toast(`分析失败：${status.errorMessage ?? status.errorCode ?? '未知错误'}`, 'error')
         return
       }
-      // 与原型行为对齐：分析完成后自动评测一次（无黄金摘要时后端返回 NOT_EVALUABLE，静默忽略）
-      try {
-        await startEvaluationApi(sessionId)
-      } catch {
-        // 评测失败不影响摘要可用性（后端同语义）
-      }
       await refreshSessionFromBackend(sessionId)
-      toast('分析完成，摘要与评测已更新')
+      toast('分析完成，摘要已更新')
+      // 摘要先展示，耗时较长的 LLM 评测在后台继续，避免终态页面被评测阻塞。
+      void startEvaluationApi(sessionId)
+        .then(async () => {
+          await refreshSessionFromBackend(sessionId)
+          toast('评测已更新')
+        })
+        .catch(() => {
+          // 无黄金摘要或评测失败不影响摘要可用性。
+        })
     },
     [refreshSessionFromBackend, toast]
   )
@@ -490,11 +507,15 @@ export default function App() {
       modelName: p.modelName,
       apiKey: p.apiKey
     })
-      .then(async (view) => {
-        const testedView = await testModelProfile({ profileId: view.profileId }).catch(() => view)
-        const resolvedView = 'profileId' in testedView ? testedView : view
-        // 保留内存中的明文 Key，供设置界面持续回显（每次保存均提交后端）
-        const mapped = { ...mapModelProfile(resolvedView), thinkingModeEnabled: p.thinkingModeEnabled, apiKey: p.apiKey }
+      .then((view) => {
+        // 保存成功后立即展示；真实模型的连接验证可能需要几十秒，在后台继续完成。
+        const mapped = {
+          ...mapModelProfile(view),
+          connectionStatus: p.connectionStatus,
+          thinkingModeSupported: p.thinkingModeSupported,
+          thinkingModeEnabled: p.thinkingModeEnabled,
+          apiKey: p.apiKey
+        }
         // 在线新建首个档案时后端尚无默认配置，同步一次绑定，否则 Run 启动会因"未配置默认模型档案"失败
         if (defaultProfileId == null) {
           void saveModelBindings(buildBindingsRequest(view.profileId, bindings)).catch((e) =>
@@ -511,6 +532,16 @@ export default function App() {
             defaultProfileId: cur.defaultProfileId ?? view.profileId
           }
         })
+        void testModelProfile({ profileId: view.profileId })
+          .then((testedView) => {
+            if (!('profileId' in testedView)) return
+            updateProfile({
+              ...mapModelProfile(testedView),
+              thinkingModeEnabled: p.thinkingModeEnabled,
+              apiKey: p.apiKey
+            })
+          })
+          .catch((e) => toast(`模型已保存，连接验证稍后可重试：${errorMessageOf(e)}`, 'warn'))
       })
       .catch((e) => toast(`保存模型配置失败：${errorMessageOf(e)}`, 'error'))
   }
@@ -588,6 +619,7 @@ export default function App() {
         setMembersBySession((m) => strip(m))
         setRelationsBySession((m) => strip(m))
         setLastRunSecondsBySession((m) => strip(m))
+        setLastRunStepsBySession((m) => strip(m))
         setImportedMessages((m) => strip(m))
         toast('会话已删除')
       }
@@ -752,9 +784,11 @@ export default function App() {
                 steps={
                   runForView && runForView.mode === 'agent-workflow'
                     ? runForView.steps
-                    : summaries.some((s) => s.mode === 'agent-workflow')
+                    : lastRunStepsBySession[activeSession.sessionId]?.['agent-workflow']
+                      ?? (summaries.some((s) => s.mode === 'agent-workflow')
                       ? completedSteps()
                       : waitingSteps()
+                      )
                 }
                 running={isRunningHere}
               />
@@ -763,9 +797,10 @@ export default function App() {
                 running={isRunningHere}
                 steps={runForView && runForView.mode === 'single-model'
                   ? runForView.steps
-                  : summaries.some((s) => s.mode === 'single-model')
-                    ? completedSteps(BASELINE_AGENT_KEYS)
-                    : waitingSteps(BASELINE_AGENT_KEYS)}
+                  : lastRunStepsBySession[activeSession.sessionId]?.['single-model']
+                    ?? (summaries.some((s) => s.mode === 'single-model')
+                      ? completedSteps(BASELINE_AGENT_KEYS)
+                      : waitingSteps(BASELINE_AGENT_KEYS))}
               />
             )}
 

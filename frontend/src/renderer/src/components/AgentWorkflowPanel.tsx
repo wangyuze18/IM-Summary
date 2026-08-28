@@ -12,8 +12,13 @@ const AGENT_LABEL: Partial<Record<AgentKey, string>> = {
 }
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
-  waiting: '等待', running: '进行中', completed: '已完成', warning: '需修订',
+  waiting: '等待', running: '进行中', completed: '已完成', warning: '有提醒',
   failed: '失败', revising: '修订中'
+}
+
+function statusLabel(step: AgentStepProgress): string {
+  if (step.status !== 'warning') return STATUS_LABEL[step.status]
+  return step.warnings.some((message) => message.includes('未通过')) ? '需修订' : '有提醒'
 }
 
 function RoleCard({ step, tone }: { step: AgentStepProgress; tone: Tone }) {
@@ -23,7 +28,7 @@ function RoleCard({ step, tone }: { step: AgentStepProgress; tone: Tone }) {
     <span className={`role-card-mascot mascot-sprite mascot-${step.agentKey}`} style={{ backgroundImage: `url(${robotSprite})` }} role="img" aria-label={label} />
     <span className="role-card-copy">
       <b>{label}</b>
-      <small className={step.status}><i />{STATUS_LABEL[step.status]}</small>
+      <small className={step.status}><i />{statusLabel(step)}</small>
     </span>
   </div>
 }
@@ -57,8 +62,9 @@ export default function AgentWorkflowPanel({ steps, running }: Props) {
     return 'idle'
   }
 
-  const summaryRevision = get('summary').status === 'revising' || get('factual-auditor').status === 'warning'
-  const importanceRevision = get('importance-extractor').status === 'revising' || get('importance-auditor').status === 'warning'
+  // 只在生成分支真正进入 revising 时点亮回退边；审核通过后的非阻断提醒不应被画成返工。
+  const summaryRevision = get('summary').status === 'revising'
+  const importanceRevision = get('importance-extractor').status === 'revising'
   const outputState = flow(['factual-auditor', 'importance-auditor'])
 
   return <section className={`panel paper-workflow-panel editorial-desk-panel ${running ? 'is-running' : ''}`} aria-label="团队模式工作流">

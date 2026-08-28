@@ -3,6 +3,7 @@ package com.imsummary.service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Component;
 public class JsonHelper {
 
     private final ObjectMapper mapper = new ObjectMapper()
+            // 评测导出包含 Instant；与 Spring MVC 保持一致，启用 classpath 中的 Java Time 模块。
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public ObjectMapper mapper() {
