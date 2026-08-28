@@ -49,12 +49,10 @@ export function formatClock(iso: string | null | undefined): string {
 const AGENT_KEY_FROM_BACKEND: Record<string, AgentKey> = {
   context_event: 'context-event',
   state: 'state',
-  user_context: 'user-context',
-  relevance: 'personalized-relevance',
   summary: 'summary',
   importance_extractor: 'importance-extractor',
+  importance_auditor: 'importance-auditor',
   factual_auditor: 'factual-auditor',
-  personalization_auditor: 'personalization-auditor',
   single_model: 'single-model',
   evaluation_judge: 'evaluation-judge'
 }
@@ -62,12 +60,10 @@ const AGENT_KEY_FROM_BACKEND: Record<string, AgentKey> = {
 const AGENT_KEY_TO_BACKEND: Record<AgentKey, string> = {
   'context-event': 'context_event',
   state: 'state',
-  'user-context': 'user_context',
-  'personalized-relevance': 'relevance',
   summary: 'summary',
   'importance-extractor': 'importance_extractor',
+  'importance-auditor': 'importance_auditor',
   'factual-auditor': 'factual_auditor',
-  'personalization-auditor': 'personalization_auditor',
   'single-model': 'single_model',
   'evaluation-judge': 'evaluation_judge'
 }

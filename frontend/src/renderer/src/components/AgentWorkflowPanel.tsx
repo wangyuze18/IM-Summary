@@ -5,7 +5,6 @@ import { AGENT_DEFS } from '../mockData'
 import type { AgentDef, MascotProp } from '../mockData'
 import contextEventAgent from '../assets/agent-context-event.png'
 import stateAgent from '../assets/agent-state.png'
-import userContextAgent from '../assets/agent-user-context.png'
 import relevanceAgent from '../assets/agent-relevance.png'
 import summaryAgent from '../assets/agent-summary.png'
 import factualAuditorAgent from '../assets/agent-factual-auditor.png'
@@ -116,12 +115,10 @@ function MascotPropIcon({ prop, dark }: { prop: MascotProp; dark: string }) {
 const AGENT_ART: Partial<Record<AgentKey, string>> = {
   'context-event': contextEventAgent,
   state: stateAgent,
-  'user-context': userContextAgent,
-  'personalized-relevance': relevanceAgent,
   summary: summaryAgent,
   'importance-extractor': relevanceAgent,
   'factual-auditor': factualAuditorAgent,
-  'personalization-auditor': personalizationAuditorAgent
+  'importance-auditor': personalizationAuditorAgent
 }
 
 function Mascot({ def }: { def: AgentDef; status: AgentStatus }) {
@@ -129,10 +126,9 @@ function Mascot({ def }: { def: AgentDef; status: AgentStatus }) {
 }
 
 const AGENT_LABEL: Partial<Record<AgentKey, string>> = {
-  'context-event': '事件识别', state: '状态判断', 'user-context': '用户上下文',
-  'personalized-relevance': '相关性分析', summary: '摘要生成',
+  'context-event': '事件识别', state: '状态判断', summary: '摘要生成',
   'importance-extractor': '重要消息',
-  'factual-auditor': '事实审核', 'personalization-auditor': '个性化审核'
+  'factual-auditor': '摘要审核', 'importance-auditor': '消息审核'
 }
 
 function AgentNode({ step }: { step: AgentStepProgress }) {
@@ -186,28 +182,24 @@ export default function AgentWorkflowPanel({ steps }: Props) {
       <div className="workflow-flow">
         <AgentNode step={get('context-event')} />
         <Connector state={connAfter(['context-event'])} />
+        <AgentNode step={get('state')} />
+        <Connector state={connAfter(['state'])} />
         <div className="parallel-group context-group">
           <div className="parallel-row">
-            <AgentNode step={get('state')} />
-            <Connector state={connAfter(['state'])} />
-            <AgentNode step={get('user-context')} />
+            <AgentNode step={get('summary')} />
+            <Connector state={connAfter(['summary'])} />
+            <AgentNode step={get('importance-extractor')} />
           </div>
-          <span className="parallel-caption">并行分析</span>
+          <span className="parallel-caption">双任务并行生成</span>
         </div>
-        <Connector state={connAfter(['state', 'user-context'])} />
-        <AgentNode step={get('personalized-relevance')} />
-        <Connector state={connAfter(['personalized-relevance'])} />
-        <AgentNode step={get('summary')} />
-        <Connector state={connAfter(['summary'])} />
-        <AgentNode step={get('importance-extractor')} />
-        <Connector state={connAfter(['importance-extractor'])} />
+        <Connector state={connAfter(['summary', 'importance-extractor'])} />
         <div className="parallel-group audit-group">
           <div className="parallel-row">
             <AgentNode step={get('factual-auditor')} />
             <Connector state={connAfter(['factual-auditor'])} />
-            <AgentNode step={get('personalization-auditor')} />
+            <AgentNode step={get('importance-auditor')} />
           </div>
-          <span className="parallel-caption">并行审核</span>
+          <span className="parallel-caption">双任务独立审核</span>
         </div>
       </div>
     </section>

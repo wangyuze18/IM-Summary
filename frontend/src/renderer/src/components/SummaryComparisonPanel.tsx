@@ -18,8 +18,8 @@ interface Props {
 }
 
 const MODE_LABEL: Record<AnalysisMode, string> = {
-  'agent-workflow': '团队工作流',
-  'single-model': '单模型'
+  'agent-workflow': '团队模式',
+  'single-model': '基础模式'
 }
 
 function FinalSummaryViewer(props: Props) {
@@ -104,7 +104,7 @@ function FinalSummaryViewer(props: Props) {
       {generating ? (
         <div className="generating">
           <span className="spinner" />
-          {generatingMode === 'agent-workflow' ? 'Agent 团队协同生成中…' : '单模型生成中…'}
+          {generatingMode === 'agent-workflow' ? '团队模式双任务生成与审核中…' : '基础模式双模型并行生成中…'}
         </div>
       ) : current ? (
         <div className="summary-body md">

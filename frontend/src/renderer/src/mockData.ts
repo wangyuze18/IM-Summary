@@ -27,12 +27,10 @@ export interface AgentDef {
 export const AGENT_DEFS: AgentDef[] = [
   { key: 'context-event', name: 'Context & Event Agent', short: '主题与事件抽取', color: '#5b8def', light: '#93b5f6', dark: '#3a63c4', prop: 'search' },
   { key: 'state', name: 'State Agent', short: '决议/待办/状态判断', color: '#3dbb7d', light: '#7ad7a8', dark: '#2a8f5c', prop: 'check' },
-  { key: 'user-context', name: 'User Context Agent', short: '职位/职责/关系上下文', color: '#8f6fd8', light: '#b8a0ea', dark: '#6a4cb0', prop: 'book' },
-  { key: 'personalized-relevance', name: 'Personalized Relevance Agent', short: '用户相关性与重要性', color: '#e8934a', light: '#f3ba84', dark: '#c06f2a', prop: 'star' },
   { key: 'summary', name: 'Summary Agent', short: '结构化摘要生成', color: '#4aa8e8', light: '#83c9f3', dark: '#2f7fbb', prop: 'pencil' },
   { key: 'importance-extractor', name: 'Importance Agent', short: '按人员抽取原始重要消息', color: '#ef9f27', light: '#f7c66f', dark: '#b86f10', prop: 'star' },
   { key: 'factual-auditor', name: 'Factual Auditor', short: '事实/遗漏/状态审核', color: '#e86a92', light: '#f39bb8', dark: '#c04468', prop: 'shield' },
-  { key: 'personalization-auditor', name: 'Personalization Auditor', short: '个性化合理性审核', color: '#42b8a6', light: '#79d4c4', dark: '#2a8a7b', prop: 'heart' }
+  { key: 'importance-auditor', name: 'Importance Auditor', short: '重要消息精确率与覆盖审核', color: '#42b8a6', light: '#79d4c4', dark: '#2a8a7b', prop: 'shield' }
 ]
 
 export const MOCK_SESSIONS: ConversationSession[] = [
@@ -130,7 +128,7 @@ export const MOCK_MESSAGES: ChatMessage[] = [
 const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 **群组名称:** 产品规划讨论群
 **报告周期:** 2025-06-12 09:00 ~ 11:32
-**分析模式:** Agent 团队模式
+**分析模式:** 团队模式
 
 ---
 
@@ -188,7 +186,7 @@ const AGENT_SUMMARY_MD = `# 工作群聊分析简报
 const SINGLE_SUMMARY_MD = `# 工作群聊分析简报
 **群组名称:** 产品规划讨论群
 **报告周期:** 2025-06-12 09:00 ~ 11:32
-**分析模式:** 单模型
+**分析模式:** 基础模式
 
 ---
 

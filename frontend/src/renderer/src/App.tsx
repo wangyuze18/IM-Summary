@@ -78,14 +78,12 @@ import type {
 const AGENT_PLAN: { key: AgentKey; start: number; duration: number }[] = [
   { key: 'context-event', start: 0, duration: 1200 },
   { key: 'state', start: 1200, duration: 1600 },
-  { key: 'user-context', start: 1200, duration: 1800 },
-  { key: 'personalized-relevance', start: 3000, duration: 1300 },
-  { key: 'summary', start: 4300, duration: 1800 },
-  { key: 'importance-extractor', start: 4300, duration: 1800 },
-  { key: 'factual-auditor', start: 6100, duration: 1400 },
-  { key: 'personalization-auditor', start: 6100, duration: 1600 }
+  { key: 'summary', start: 2800, duration: 1800 },
+  { key: 'importance-extractor', start: 2800, duration: 1800 },
+  { key: 'factual-auditor', start: 4600, duration: 1400 },
+  { key: 'importance-auditor', start: 4600, duration: 1600 }
 ]
-const AGENT_TOTAL = 7700
+const AGENT_TOTAL = 6200
 const SINGLE_TOTAL = 2600
 
 // 后端运行终态（对应 AgentRunEntity.status）
@@ -464,7 +462,7 @@ export default function App() {
         })
         timersRef.current.push(window.setTimeout(() => finishRun(sessionId, runMode), AGENT_TOTAL + 200))
       } else {
-        // 单模型模式：简化的单步进度
+        // 基础模式：双模型并行进度
         const progressTick = window.setInterval(() => {
           setRun((r) => (r && !r.done ? { ...r, progress: Math.min(96, r.progress + 4) } : r))
         }, 100)
@@ -810,12 +808,12 @@ export default function App() {
           messages
         }
       }
-      // txt / csv：按行解析，个性化数据缺失 → 警告态
+      // txt / csv：按行解析，角色与组织上下文缺失 → 警告态
       const lines = text.split(/\r?\n/).filter((l) => l.trim())
       return {
         ...item,
         status: 'warning',
-        warnings: ['纯文本导入将按行解析消息', '成员画像与组织关系数据缺失，个性化能力降级'],
+        warnings: ['纯文本导入将按行解析消息', '成员角色与组织关系数据缺失，角色分组能力降级'],
         preview: {
           groupName: name.replace(/\.\w+$/, ''),
           messageCount: lines.length,

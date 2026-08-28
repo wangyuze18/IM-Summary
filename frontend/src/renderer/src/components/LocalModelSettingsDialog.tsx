@@ -318,7 +318,7 @@ export default function LocalModelSettingsDialog(props: Props) {
           )}
 
           {/* Agent 与模型绑定（§11.5）：默认收起，单个 Agent 可覆盖配置 */}
-          <div className="settings-section">团队工作流模型</div>
+          <div className="settings-section">团队模式模型</div>
           <details className="binding-details">
             <summary>按阶段指定模型</summary>
             <div style={{ marginTop: 6 }}>
@@ -342,9 +342,9 @@ export default function LocalModelSettingsDialog(props: Props) {
             </div>
           </details>
 
-          {/* 单模型模式与评测判分模型：非工作流阶段，可单独指定模型档案 */}
+          {/* 基础模式摘要模型与评测判分模型：非团队阶段，可单独指定模型档案 */}
           {([
-            { key: 'single-model', title: '单模型模式模型', label: '单模型直接生成摘要' },
+            { key: 'single-model', title: '基础模式摘要模型', label: '与重要消息模型并行生成（baseline）' },
             { key: 'evaluation-judge', title: '评测判分模型', label: '综合质量评分（LLM Score）判分' }
           ] as const).map(({ key, title, label }) => {
             const binding = bindings.find((b) => b.agentKey === key)

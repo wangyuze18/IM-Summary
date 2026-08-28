@@ -50,13 +50,11 @@ export interface OrganizationRelation {
 export type AgentKey =
   | 'context-event'
   | 'state'
-  | 'user-context'
-  | 'personalized-relevance'
   | 'summary'
   | 'importance-extractor'
+  | 'importance-auditor'
   | 'factual-auditor'
-  | 'personalization-auditor'
-  // 以下两键非工作流步骤，仅参与模型绑定：单模型模式与评测判分模型可在模型设置中单独指定
+  // 以下两键非团队工作流步骤，仅参与基础模式与评测模型绑定
   | 'single-model'
   | 'evaluation-judge'
 
