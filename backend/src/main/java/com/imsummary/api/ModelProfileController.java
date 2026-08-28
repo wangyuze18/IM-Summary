@@ -35,7 +35,9 @@ public class ModelProfileController {
                 (String) body.get("baseUrl"),
                 (String) body.get("modelName"),
                 (String) body.get("apiKey"),
-                (Boolean) body.get("enabled"));
+                (Boolean) body.get("enabled"),
+                (String) body.get("connectionStatus"),
+                (Boolean) body.get("thinkingModeSupported"));
     }
 
     @DeleteMapping("/{profileId}")
@@ -72,11 +74,11 @@ public class ModelProfileController {
      */
     @PostMapping("/models")
     public Map<String, Object> listModels(@RequestBody Map<String, Object> body) {
-        return Map.of("models", profileService.listModels(
+        return profileService.discoverModels(
                 (String) body.get("profileId"),
                 (String) body.get("providerType"),
                 (String) body.get("baseUrl"),
-                (String) body.get("apiKey")));
+                (String) body.get("apiKey"));
     }
 
     // ---------- Agent 绑定 ----------

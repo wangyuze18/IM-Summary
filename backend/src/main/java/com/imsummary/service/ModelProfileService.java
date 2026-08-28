@@ -54,7 +54,8 @@ public class ModelProfileService {
     }
 
     public Map<String, Object> saveProfile(String profileId, String displayName, String providerType,
-                                           String baseUrl, String modelName, String apiKey, Boolean enabled) {
+                                           String baseUrl, String modelName, String apiKey, Boolean enabled,
+                                           String connectionStatus, Boolean thinkingModeSupported) {
         ModelApiProfileEntity entity = profileId == null || profileId.isBlank()
                 ? new ModelApiProfileEntity()
                 : profileRepository.findById(profileId).orElseGet(ModelApiProfileEntity::new);
@@ -78,6 +79,12 @@ public class ModelProfileService {
         }
         if (enabled != null) {
             entity.setEnabled(enabled);
+        }
+        if ("available".equals(connectionStatus)) {
+            entity.setConnectionStatus("available");
+            entity.setLastErrorMessage(null);
+            entity.setLastTestedAt(Instant.now());
+            entity.setThinkingModeSupported(Boolean.TRUE.equals(thinkingModeSupported));
         }
         profileRepository.save(entity);
         return toMaskedView(entity);
@@ -152,7 +159,7 @@ public class ModelProfileService {
      * 获取模型列表（V5.2）：携带 profileId 时用已保存档案（未给 apiKey 则解密已存凭据），
      * 否则按草稿 providerType + baseUrl + apiKey 探测。返回结构不含明文 Key。
      */
-    public List<String> listModels(String profileId, String providerType, String baseUrl, String apiKey) {
+    public Map<String, Object> discoverModels(String profileId, String providerType, String baseUrl, String apiKey) {
         String effectiveProviderType = providerType;
         String effectiveBaseUrl = baseUrl;
         String effectiveApiKey = apiKey;
@@ -175,12 +182,35 @@ public class ModelProfileService {
             throw new IllegalArgumentException("缺少 API Key，无法获取模型列表");
         }
         try {
-            return gateway.listModelsDraft(effectiveProviderType, effectiveBaseUrl, effectiveApiKey);
+            List<String> models = gateway.listModelsDraft(effectiveProviderType, effectiveBaseUrl, effectiveApiKey);
+            Map<String, Object> capabilities = new LinkedHashMap<>();
+            for (String model : models) {
+                capabilities.put(model, Map.of(
+                        "thinkingModeSupported", supportsThinking(effectiveProviderType, model)));
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("models", models);
+            result.put("capabilities", capabilities);
+            return result;
         } catch (ModelCallException e) {
             throw e;
         } catch (Exception e) {
             throw new ModelCallException("获取模型列表失败：" + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 模型目录已证明服务、凭据与模型可访问；思考能力按协议和稳定的模型命名即时识别，
+     * 避免自动选择模型后再发起一次耗时的生成请求。用户仍可主动执行完整连接验证。
+     */
+    boolean supportsThinking(String providerType, String modelName) {
+        String name = modelName == null ? "" : modelName.toLowerCase(Locale.ROOT);
+        if ("anthropic".equals(providerType)) {
+            return name.contains("claude");
+        }
+        return name.contains("think") || name.contains("reason") || name.contains("qwq")
+                || name.contains("deepseek-r1") || name.matches(".*(?:^|[-_/])r1(?:[-_/].*)?$")
+                || name.contains("qwen3") || name.matches(".*(?:^|[-_/])o[134](?:[-_/].*)?$");
     }
 
     // ---------- Agent 绑定 ----------

@@ -60,6 +60,14 @@ public class EvaluationService {
                     .orElseThrow(() -> new NoSuchElementException("该会话尚无摘要，请先运行分析"));
         }
 
+        // 同一摘要与同一黄金版本只评一次，刷新页面或重复触发时直接复用历史结果。
+        Optional<EvaluationRecordEntity> cached = evaluationRepository.findBySummaryId(summary.getSummaryId()).stream()
+                .filter(record -> record.getGoldenVersion() == golden.getGoldenVersion() && !record.isOutdated())
+                .max(Comparator.comparing(record -> Optional.ofNullable(record.getEvaluatedAt()).orElse(Instant.EPOCH)));
+        if (cached.isPresent()) {
+            return toView(cached.get());
+        }
+
         JsonNode generatedStructured;
         try {
             generatedStructured = json.parse(summary.getStructuredJson());
@@ -87,22 +95,18 @@ public class EvaluationService {
             GatewayModels.ChatResponse resp = gateway.chat(judgeProfile,
                     new GatewayModels.ChatRequest(PromptTemplates.EVALUATION_JUDGE_SYSTEM,
                             List.of(new GatewayModels.ChatMessage("user", judgeInput)),
-                            0.0, false));
+                            0.0, false, 128));
             JsonNode metrics = json.parse(json.extractJsonObject(resp.content()));
             accuracy = metrics.path("accuracy").asDouble(0.0);
             omission = metrics.path("keyInformationOmissionRate").asDouble(0.0);
             llmScore = Math.max(0, Math.min(100, metrics.path("llm_score").asDouble(0.0)));
 
-            // 3) 重要消息独立判分，不向该判分器提供摘要，也不产生 llm_score。
+            // 3) 重要消息有稳定 messageId 契约，直接做集合匹配，无需第二次 LLM 调用。
             if (golden.getImportantMessagesJson() != null) {
-                String importanceInput = "生成重要消息：\n" + json.toJson(generatedStructured.path("importantMessages"))
-                        + "\n\n黄金重要消息：\n" + golden.getImportantMessagesJson();
-                GatewayModels.ChatResponse importanceResp = gateway.chat(judgeProfile,
-                        new GatewayModels.ChatRequest(PromptTemplates.IMPORTANCE_EVALUATION_SYSTEM,
-                                List.of(new GatewayModels.ChatMessage("user", importanceInput)), 0.0, false));
-                JsonNode importanceMetrics = json.parse(json.extractJsonObject(importanceResp.content()));
-                importantPrecision = round(importanceMetrics.path("importantMessagePrecision").asDouble(0.0));
-                importantRecall = round(importanceMetrics.path("importantMessageRecall").asDouble(0.0));
+                JsonNode goldenImportant = json.parse(golden.getImportantMessagesJson());
+                double[] importanceScores = importantMessageMetrics(generatedStructured.path("importantMessages"), goldenImportant);
+                importantPrecision = round(importanceScores[0]);
+                importantRecall = round(importanceScores[1]);
             }
         } catch (IllegalStateException configError) {
             throw configError;
@@ -213,6 +217,29 @@ public class EvaluationService {
 
     private double round(double v) {
         return Math.round(v * 10000) / 10000.0;
+    }
+
+    /** 精确率/召回率按 messageId 主键计算；空集合遵循常用集合评测约定。 */
+    double[] importantMessageMetrics(JsonNode generated, JsonNode golden) {
+        Set<String> generatedIds = messageIds(generated);
+        Set<String> goldenIds = messageIds(golden);
+        Set<String> matched = new HashSet<>(generatedIds);
+        matched.retainAll(goldenIds);
+        double precision = generatedIds.isEmpty() ? (goldenIds.isEmpty() ? 1.0 : 0.0)
+                : (double) matched.size() / generatedIds.size();
+        double recall = goldenIds.isEmpty() ? 1.0 : (double) matched.size() / goldenIds.size();
+        return new double[]{precision, recall};
+    }
+
+    private Set<String> messageIds(JsonNode messages) {
+        Set<String> ids = new HashSet<>();
+        if (messages != null && messages.isArray()) {
+            for (JsonNode message : messages) {
+                String id = message.path("messageId").asText("").trim();
+                if (!id.isBlank()) ids.add(id);
+            }
+        }
+        return ids;
     }
 
     private String summaryOnlyText(JsonNode structured, String mode) {

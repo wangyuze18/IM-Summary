@@ -24,8 +24,12 @@ public final class GatewayModels {
             String system,
             List<ChatMessage> messages,
             Double temperature,
-            boolean enableThinking
+            boolean enableThinking,
+            Integer maxOutputTokens
     ) {
+        public ChatRequest(String system, List<ChatMessage> messages, Double temperature, boolean enableThinking) {
+            this(system, messages, temperature, enableThinking, null);
+        }
     }
 
     /**

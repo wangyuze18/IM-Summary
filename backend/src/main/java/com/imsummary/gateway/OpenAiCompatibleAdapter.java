@@ -141,6 +141,9 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
             // 尽力而为：兼容部分国产/开源模型的 thinking 参数，其他供应商会忽略
             body.put("enable_thinking", true);
         }
+        if (request.maxOutputTokens() != null) {
+            body.put("max_tokens", request.maxOutputTokens());
+        }
         return body;
     }
 
@@ -200,7 +203,7 @@ public class OpenAiCompatibleAdapter implements ModelProviderAdapter {
                     "Reply with the single word: ok", 
                     java.util.List.of(new GatewayModels.ChatMessage("user", "ping")),
                     0.0, false));
-            body.put("max_tokens", 16);
+            body.put("max_tokens", 1);
             JsonNode json = postWithVersionFallback(baseUrl, apiKey, body);
             boolean ok = json.hasNonNull("choices");
             boolean thinkingDetected = detectThinking(json, modelName);

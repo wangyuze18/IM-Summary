@@ -190,15 +190,6 @@ public final class PromptTemplates {
             仅输出 JSON：{"accuracy":0.9,"keyInformationOmissionRate":0.1,"llm_score":85}
             """;
 
-    public static final String IMPORTANCE_EVALUATION_SYSTEM = """
-            你是重要消息抽取评测器。只比较“生成重要消息”和“黄金重要消息”，不得评价摘要文本。
-            以 messageId 优先匹配；缺少 messageId 时按 speaker 与原文内容综合匹配。
-            importantMessagePrecision = 正确匹配的生成条目数 / 生成条目数。
-            importantMessageRecall = 正确匹配的黄金条目数 / 黄金条目数。
-            错误类型、虚构原文、过时状态和普通闲聊均是假阳性；遗漏关键待办/决议/风险/审批/阻断/进度是假阴性。
-            仅输出 JSON：{"importantMessagePrecision":0.8,"importantMessageRecall":0.75}
-            """;
-
     /** 将消息列表渲染为对话文本（所有 Agent 共用） */
     public static String renderDialogue(String messagesText) {
         return "以下是群聊记录：\n---\n" + messagesText + "\n---\n";

@@ -78,7 +78,8 @@ public class AnthropicAdapter implements ModelProviderAdapter {
     @Override
     public GatewayModels.ChatResponse chat(String baseUrl, String apiKey, String modelName,
                                            GatewayModels.ChatRequest request) throws Exception {
-        ObjectNode body = buildBody(modelName, request, 8192);
+        ObjectNode body = buildBody(modelName, request,
+                request.maxOutputTokens() == null ? 8192 : request.maxOutputTokens());
         JsonNode json = post(endpoint(baseUrl), apiKey, body);
         StringBuilder content = new StringBuilder();
         boolean thinkingUsed = false;
@@ -149,7 +150,7 @@ public class AnthropicAdapter implements ModelProviderAdapter {
             ObjectNode body = buildBody(modelName, new GatewayModels.ChatRequest(
                     "Reply with the single word: ok",
                     java.util.List.of(new GatewayModels.ChatMessage("user", "ping")),
-                    0.0, false), 16);
+                    0.0, false), 1);
             JsonNode json = post(endpoint(baseUrl), apiKey, body);
             boolean ok = json.hasNonNull("content");
             String name = modelName == null ? "" : modelName.toLowerCase();
