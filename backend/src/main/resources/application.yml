@@ -21,7 +21,7 @@ spring:
 imsummary:
   # 凭据加密密钥（Demo 级；生产环境应使用环境变量或密钥管理服务注入）
   credential-secret: ${IMSUMMARY_SECRET:im-summary-demo-secret-key-2026}
-  # Auditor 触发修订的最大次数，超过进入 warning
-  max-revision: 2
+  # Auditor 触发修订的最大次数；只作为防止死循环的保险丝，已通过分支不会重复调用
+  max-revision: ${IMSUMMARY_MAX_REVISION:6}
   # 模型调用超时（秒）；判官评测与长上下文 Agent 响应较慢，可用环境变量覆盖（V5.2）
   model-timeout-seconds: ${IMSUMMARY_MODEL_TIMEOUT_SECONDS:300}

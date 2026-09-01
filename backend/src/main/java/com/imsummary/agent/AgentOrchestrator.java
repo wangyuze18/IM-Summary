@@ -55,7 +55,11 @@ public class AgentOrchestrator {
     private final SimpMessagingTemplate messaging;
     private final ObjectProvider<EvaluationService> evaluationServiceProvider;
 
-    @Value("${imsummary.max-revision:2}")
+    /**
+     * 每个审核分支的最大返工轮次。只作为防止模型陷入死循环的保险丝，
+     * 通过配置可继续提高；已通过的分支不会重复调用模型。
+     */
+    @Value("${imsummary.max-revision:6}")
     private int maxRevision;
 
     public AgentOrchestrator(ModelGateway gateway, ModelProfileService profileService,
@@ -182,7 +186,8 @@ public class AgentOrchestrator {
         boolean reviseImportance = true;
         boolean warnings = false;
 
-        for (int revision = 0; revision <= maxRevision; revision++) {
+        int revisionLimit = Math.max(1, maxRevision);
+        for (int revision = 0; revision < revisionLimit; revision++) {
             if (revision > 0) {
                 run.setRevisionNo(revision);
                 run.setStatus("revising");
@@ -257,22 +262,32 @@ public class AgentOrchestrator {
             boolean summaryWarning = hasSeverity(summaryAudit, "warning");
             boolean importanceWarning = hasSeverity(importanceAudit, "warning");
             warnings = warnings || summaryWarning || importanceWarning;
-            if (reviseSummary) finishStep(run, "factual_auditor", summaryError || summaryWarning ? "warning" : "success",
-                    summaryError ? "摘要未通过，等待定向修订" : summaryWarning ? "摘要通过，存在警告" : "摘要审核通过");
-            if (reviseImportance) finishStep(run, "importance_auditor", importanceError || importanceWarning ? "warning" : "success",
-                    importanceError ? "重要消息未通过，等待定向修订" : importanceWarning ? "重要消息通过，存在警告" : "重要消息审核通过");
-
+            boolean summaryBranchRan = reviseSummary;
+            boolean importanceBranchRan = reviseImportance;
             reviseSummary = summaryError;
             reviseImportance = importanceError;
+            boolean revisionAvailable = revision + 1 < revisionLimit;
+            if (summaryBranchRan) finishStep(run, "factual_auditor",
+                    summaryError || summaryWarning ? "warning" : "success",
+                    summaryError
+                            ? (revisionAvailable
+                                ? "摘要未通过，已生成定向修订意见"
+                                : "摘要仍有 " + issueCount(summaryAudit) + " 项问题，已达到返工保护上限")
+                            : summaryWarning ? "摘要审核通过，保留提醒" : "摘要审核通过");
+            if (importanceBranchRan) finishStep(run, "importance_auditor",
+                    importanceError || importanceWarning ? "warning" : "success",
+                    importanceError
+                            ? (revisionAvailable
+                                ? "重要消息未通过，已生成定向修订意见"
+                                : "重要消息仍有 " + issueCount(importanceAudit) + " 项问题，已达到返工保护上限")
+                            : importanceWarning ? "重要消息审核通过，保留提醒" : "重要消息审核通过");
             if (!reviseSummary && !reviseImportance) break;
-            if (revision == maxRevision) break;
+            if (!revisionAvailable) break;
             if (reviseSummary) {
-                summaryFeedback = "\n只修订以下摘要审核问题，其他正确字段保持不变：\n"
-                        + json.toJson(summaryAudit.path("issues")) + "\n上一版摘要：\n" + json.toJson(summary);
+                summaryFeedback = buildRevisionFeedback("摘要", summaryAudit, "上一版摘要", summary);
             }
             if (reviseImportance) {
-                importanceFeedback = "\n只修订以下重要消息审核问题；content 必须重新核对原文：\n"
-                        + json.toJson(importanceAudit.path("issues")) + "\n上一版重要消息：\n" + json.toJson(importance);
+                importanceFeedback = buildRevisionFeedback("重要消息", importanceAudit, "上一版重要消息", importance);
             }
         }
 
@@ -396,6 +411,38 @@ public class AgentOrchestrator {
             if (severity.equals(issue.path("severity").asText())) return true;
         }
         return false;
+    }
+
+    private int issueCount(JsonNode report) {
+        return report != null && report.path("issues").isArray() ? report.path("issues").size() : 0;
+    }
+
+    /**
+     * 将审核器的结构化问题压缩成定向返工指令，避免下一轮重新猜测问题位置。
+     * 只把当前失败分支送回模型，已通过分支不会重复调用。
+     */
+    private String buildRevisionFeedback(String branch, JsonNode audit, String previousLabel, JsonNode previous) {
+        StringBuilder feedback = new StringBuilder("\n【").append(branch)
+                .append("审核未通过，请仅修订下列问题】\n");
+        JsonNode issues = audit == null ? null : audit.path("issues");
+        if (issues != null && issues.isArray()) {
+            int index = 1;
+            for (JsonNode issue : issues) {
+                String description = issue.path("description").asText("未提供问题说明").trim();
+                String suggestion = issue.path("suggestion").asText("").trim();
+                feedback.append(index++).append(". ")
+                        .append(issue.path("severity").asText("error"))
+                        .append(" / ").append(issue.path("type").asText("schema"));
+                if (issue.hasNonNull("fieldPath")) feedback.append(" / 字段 ").append(issue.path("fieldPath").asText());
+                if (issue.hasNonNull("messageId")) feedback.append(" / 原文 ").append(issue.path("messageId").asText());
+                feedback.append("：").append(description);
+                if (!suggestion.isEmpty()) feedback.append("；修订建议：").append(suggestion);
+                feedback.append('\n');
+            }
+        }
+        feedback.append("保持其他正确字段、原文 messageId 和 JSON 字段不变；只返回完整可解析 JSON。\n")
+                .append(previousLabel).append("：\n").append(json.toJson(previous));
+        return feedback.toString();
     }
 
     private String renderDialogue(String messagesJson) {

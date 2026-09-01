@@ -41,7 +41,8 @@ public final class PromptTemplates {
             3. 实体保真：消息正文中的 @提及、人名、版本号、系统名必须原样保留；结构字段 speaker 按其专属格式填写。
             4. 空值优先：负责人/截止日期未明确时填"未明确"，不得猜测。
             5. 状态谨慎：无法确定状态时保留 proposed/待处理，不得升级为已确认。
-            6. 仅输出要求的 JSON，不输出 markdown 代码块标记、解释或思维过程。
+            6. @所有人 是有效的全员提及，不能按寒暄或普通符号丢弃；涉及全员行动、风险或阻断时必须保留。
+            7. 仅输出要求的 JSON，不输出 markdown 代码块标记、解释或思维过程。
             """;
 
     /** Stage 1：主题重建 + 原子事件抽取 */
@@ -127,7 +128,8 @@ public final class PromptTemplates {
             - error：遗漏明确待办、已达成决议、风险、审批、阻断或关键进度；误收闲聊/未达成的提议；原文、messageId、说话者不匹配；保留已失效状态。任一 error 存在时 passed 必须为 false，以触发定向修订。
             - warning：仅用于不改变条目取舍的次要上下文表达差异；不得用 warning 降级上述遗漏。
             仅输出 JSON：
-            {"passed":true,"issues":[{"type":"false_positive|omission|source|state|schema","severity":"error|warning","messageId":"m01","description":"问题","suggestion":"如何修订"}]}
+            {"passed":true,"issues":[{"type":"false_positive|omission|source|state|schema","severity":"error|warning","messageId":"m01","description":"明确指出哪条重要消息不准确或遗漏","suggestion":"给抽取器可直接执行的修订动作"}]}
+            每个问题都必须包含原文可定位信息、简短 description 和可执行 suggestion；最多列出 8 个最关键问题，按严重程度排序。
             """;
 
     /** Stage 4：摘要事实审核 */
@@ -143,9 +145,11 @@ public final class PromptTemplates {
               "passed":true,
               "issues":[{"type":"hallucination|omission|decision_validity|todo_validity|state|entity|schema",
                 "severity":"error|warning","fieldPath":"todos[0].owner",
-                "eventId":"E1","description":"问题描述","routeTo":"summary|state|context_event"}]
+                "eventId":"E1","description":"明确指出哪一项事实、字段或粒度不足",
+                "suggestion":"给生成器可直接执行的修订动作",
+                "routeTo":"summary|state|context_event"}]
             }
-            无问题时 passed 为 true 且 issues 为空数组。
+            每个问题都必须同时给出可定位的 description 和可执行的 suggestion；最多列出 8 个最关键问题，按严重程度排序。无问题时 passed 为 true 且 issues 为空数组。
             """;
 
     /** 基础模式摘要模型：与重要消息模型并行直出，不使用团队中间产物。 */
