@@ -60,7 +60,10 @@ function TeamQualityProof({ summary }: { summary: SummaryResult }) {
               {[...summaryIssues, ...importanceIssues].map((issue, index) => (
                 <li key={`${issue.type}-${index}`}>
                   <span className={`audit-severity ${issue.severity}`}>{issue.severity === 'error' ? '错误' : '警告'}</span>
-                  {issue.description}
+                  <span className="audit-issue-copy">
+                    <span>{issue.description}</span>
+                    {issue.suggestion && <span className="audit-suggestion">修订：{issue.suggestion}</span>}
+                  </span>
                 </li>
               ))}
             </ul>

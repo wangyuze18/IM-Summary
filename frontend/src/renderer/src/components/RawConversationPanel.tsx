@@ -34,7 +34,8 @@ export default function RawConversationPanel(props: Props) {
   }, [highlightMessageId])
 
   const renderContent = (msg: ChatMessage) => {
-    if (msg.mentions.length === 0) return msg.content
+    const mentionsEveryone = /@所有人/.test(msg.content)
+    if (msg.mentions.length === 0 && !mentionsEveryone) return msg.content
     // @提及使用主色强调，点击联动右侧成员高亮
     const parts: React.ReactNode[] = []
     let rest = msg.content
@@ -47,6 +48,15 @@ export default function RawConversationPanel(props: Props) {
       }
       if (idx > 0) parts.push(rest.slice(0, idx))
       const after = rest.slice(idx + 1)
+      if (after.startsWith('所有人')) {
+        parts.push(
+          <span key={`${msg.messageId}-${i++}`} className="mention mention-all" title="群组全体成员">
+            @所有人
+          </span>
+        )
+        rest = after.slice('所有人'.length)
+        continue
+      }
       // 真实数据集的 mentions 为成员姓名，兼容 userId / 姓名两种匹配（V4.4）
       const mentioned = members.find((m) => after.startsWith(m.name) && (msg.mentions.includes(m.name) || msg.mentions.includes(m.userId)))
       if (mentioned) {

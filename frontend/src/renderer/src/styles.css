@@ -136,15 +136,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .paper-agent { width: 122px; flex: 0 0 122px; display: flex; flex-direction: column; align-items: center; position: relative; }
 .agent-avatar { width: 76px; height: 86px; display: flex; align-items: center; justify-content: center; position: relative; background: transparent; border: 0; }
 .mascot { display: block; width: 64px; height: 84px; transform-origin: 50% 72%; }
-.mascot-sprite { background-repeat: no-repeat; background-size: 400% 200%; }
-.mascot-context-event { background-position: 0 0; }
-.mascot-state { background-position: 33.333% 0; }
-.mascot-summary { background-position: 66.666% 0; }
-.mascot-importance-extractor { background-position: 100% 0; }
-.mascot-factual-auditor { background-position: 0 100%; }
-.mascot-importance-auditor { background-position: 33.333% 100%; }
-.mascot-baseline-summary { background-position: 66.666% 100%; }
-.mascot-baseline-importance { background-position: 100% 100%; }
+/* Sprite 每个角色轻微放大并对齐中心，压掉 tile 周边的无关留白；保留透明背景和 4×2 顺序。 */
+.mascot-sprite { background-repeat: no-repeat; background-size: auto 224%; }
+.mascot-context-event { background-position: 1% 5%; }
+.mascot-state { background-position: 34% 5%; }
+.mascot-summary { background-position: 66% 5%; }
+.mascot-importance-extractor { background-position: 99% 5%; }
+.mascot-factual-auditor { background-position: 1% 95%; }
+.mascot-importance-auditor { background-position: 34% 95%; }
+.mascot-baseline-summary { background-position: 66% 95%; }
+.mascot-baseline-importance { background-position: 99% 95%; }
 .agent-node.waiting .mascot { filter: saturate(.55); opacity: .68; }
 .agent-node.running .agent-avatar::after, .agent-node.revising .agent-avatar::after { content: ''; position: absolute; inset: 8px 2px 4px; z-index: -1; border-radius: 50%; background: radial-gradient(circle,rgba(70,126,218,.17),rgba(70,126,218,0) 70%); animation: agentGlow 1.8s ease-in-out infinite; }
 .agent-node.teal.running .agent-avatar::after, .agent-node.teal.revising .agent-avatar::after { background: radial-gradient(circle,rgba(25,166,156,.18),rgba(25,166,156,0) 70%); }
@@ -348,6 +349,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-content { flex: 1; min-width: 0; padding-top: 1px; font-size: 13px; line-height: 1.55; color: #334050; }
 .chat-time { color: var(--text-3); font-size: 11.5px; flex-shrink: 0; padding-top: 9px; margin-left: 6px; }
 .mention { color: var(--primary); font-weight: 600; cursor: pointer; background: var(--primary-light); border-radius: 4px; padding: 0 3px; }
+.mention.mention-all { color: #8a5a12; background: #fff0c4; box-shadow: inset 0 -1px #e4bd67; }
 
 /* 摘要 SummaryComparisonPanel */
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
@@ -379,6 +381,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .audit-severity { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; }
 .audit-severity.error { color: var(--red); background: var(--red-bg); }
 .audit-severity.warning { color: var(--yellow); background: var(--yellow-bg); }
+.audit-issue-copy { display: inline-flex; flex-direction: column; gap: 2px; vertical-align: top; }
+.audit-suggestion { color: #58708c; font-size: 11px; }
 
 /* Markdown 渲染 */
 .md h1 { font-size: 17px; margin: 5px 0 10px; letter-spacing: -.2px; }
